@@ -146,7 +146,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
-    private void releaseProximityWakeLock(boolean waitForNoProximity) {
+    private void releaseProximityWakeLock(final boolean waitForNoProximity) {
         if (!isProximityWakeLockSupported()) {
             return;
         }
@@ -509,7 +509,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         // -- TODO: bluetooth support
     */
 
-    private static void sendEvent(String eventName, @Nullable WritableMap params) {
+    private static void sendEvent(final String eventName, @Nullable WritableMap params) {
         try {
             reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
@@ -520,8 +520,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void start(String media, boolean auto) {
-        if (media == "video") {
+    public void start(final String media, final boolean auto) {
+        if (media.equals("video")) {
             defaultSpeakerOn = true;
         } else {
             defaultSpeakerOn = false;
@@ -529,17 +529,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         automatic = auto;
         if (!audioManagerInitialized) {
             Log.d(TAG, "start audioRouteManager");
-            requestAudioFocus();
-            // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
             storeOriginalAudioSetup();
+            startEvents();
+            // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
             setMicrophoneMute(false);
             audioManager.setMode(defaultAudioMode);
             updateAudioRoute();
-            startWiredHeadsetEvent();
-            startNoisyAudioEvent();
-            startMediaButtonEvent();
-            startProximitySensor();
-            setKeepScreenOn(true);
             audioManagerInitialized = true;
         }
     }
@@ -548,13 +543,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void stop() {
         if (audioManagerInitialized) {
             Log.d(TAG, "stop audioRouteManager");
-            stopWiredHeadsetEvent();
-            stopNoisyAudioEvent();
-            stopMediaButtonEvent();
-            stopProximitySensor();
+            stopEvents();
             restoreOriginalAudioSetup();
-            releaseAudioFocus();
-            setKeepScreenOn(false);
             audioManagerInitialized = false;
         }
     }
@@ -562,25 +552,36 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private void pause() {
         if (audioManagerInitialized) {
             Log.d(TAG, "pause audioRouteManager");
-            releaseAudioFocus();
-            stopWiredHeadsetEvent();
-            stopNoisyAudioEvent();
-            stopMediaButtonEvent();
-            stopProximitySensor();
-            setKeepScreenOn(false);
+            stopEvents();
         }
     }
 
     private void resume() {
         if (audioManagerInitialized) {
             Log.d(TAG, "resume audioRouteManager");
-            requestAudioFocus();
-            startWiredHeadsetEvent();
-            startNoisyAudioEvent();
-            startMediaButtonEvent();
-            startProximitySensor();
-            setKeepScreenOn(true);
+            startEvents();
         }
+    }
+
+    private void startEvents() {
+        requestAudioFocus();
+        startWiredHeadsetEvent();
+        startNoisyAudioEvent();
+        startMediaButtonEvent();
+        if (!defaultSpeakerOn) {
+            // video, default disable proximity
+            startProximitySensor();
+        }
+        setKeepScreenOn(true);
+    }
+
+    private void stopEvents() {
+        stopWiredHeadsetEvent();
+        stopNoisyAudioEvent();
+        stopMediaButtonEvent();
+        stopProximitySensor();
+        setKeepScreenOn(false);
+        releaseAudioFocus();
     }
 
     private void requestAudioFocus() {
@@ -664,7 +665,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void setSpeakerphoneOn(boolean enable) {
+    public void setSpeakerphoneOn(final boolean enable) {
         if (enable != audioManager.isSpeakerphoneOn())  {
             Log.d(TAG, "setSpeakerphoneOn(): " + enable);
             audioManager.setSpeakerphoneOn(enable);
@@ -672,7 +673,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void setForceSpeakerphoneOn(boolean enable) {
+    public void setForceSpeakerphoneOn(final boolean enable) {
         forceSpeakerOn = enable;
         if (forceSpeakerOn) {
             Log.d(TAG, "setForceSpeakerphoneOn()");
@@ -681,7 +682,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void setMicrophoneMute(boolean enable) {
+    public void setMicrophoneMute(final boolean enable) {
         if (enable != audioManager.isMicrophoneMute())  {
             Log.d(TAG, "setMicrophoneMute(): " + enable);
             audioManager.setMicrophoneMute(enable);

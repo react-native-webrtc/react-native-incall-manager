@@ -54,7 +54,9 @@ class RNInCallManager: NSObject {
         //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
         _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
         _ = try? self.audioSession.setMode(self.defaultAudioMode)
-        self.startProximitySensor()
+        if media == "audio" {
+            self.startProximitySensor()
+        }
         self.setKeepScreenOn(true)
         self.audioSessionInitialized = true
     }

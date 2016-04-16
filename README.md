@@ -77,6 +77,7 @@ DeviceEventEmitter.addListener('Proximity', function (data) {
 **on start:**  
 * store current settings, set KeepScreenOn flag = true, and register some event listeners.
 * if media type is `audio`, route voice to earpiece, otherwise route to speaker.
+* audio will enable proximity sensor which is disabled by default if media=video
 * when proximity detect user closed to screen, turn off screen to avoid accident touch and route voice to earpiece.
 * when newly external device plugged, such as wired-headset, route audio to external device.
 
