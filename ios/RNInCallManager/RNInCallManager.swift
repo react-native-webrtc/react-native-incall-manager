@@ -77,7 +77,7 @@ class RNInCallManager: NSObject {
     }
 
     @objc func turnScreenOff() -> Void {
-        print("ios doesn't support turnScreenOn()")
+        print("ios doesn't support turnScreenOff()")
     }
 
     func updateAudioRoute() -> Void {
