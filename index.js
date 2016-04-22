@@ -5,10 +5,12 @@ var InCallManager = {
     start: function(setup) {
         let auto = (setup.auto === false) ? false : true;
         let media = (setup.media === 'video') ? 'video' : 'audio';
-        _InCallManager.start(media, auto);
+        let ringback = (!!setup.ringback) ? (setup.ringback === 'bundle') ? 'bundle' : 'sys' : '';
+        _InCallManager.start(media, auto, ringback);
     },
-    stop: function() {
-        _InCallManager.stop();
+    stop: function(setup) {
+         let busytone = (setup.busytone === true) ? true : false;
+        _InCallManager.stop(busytone);
     },
     turnScreenOff: function() {
         _InCallManager.turnScreenOff();
@@ -31,6 +33,16 @@ var InCallManager = {
     setMicrophoneMute: function(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setMicrophoneMute(enable);
+    },
+    startRingtone: function(type) {
+        type = (type === 'bundle') ? 'bundle' : 'sys';
+        _InCallManager.startRingtone(type);
+    },
+    stopRingtone: function() {
+        _InCallManager.stopRingtone();
+    },
+    stopRingback: function() {
+        _InCallManager.stopRingback();
     },
 };
 
