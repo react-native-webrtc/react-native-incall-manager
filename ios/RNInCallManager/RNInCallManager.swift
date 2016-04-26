@@ -181,29 +181,24 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         NSNotificationCenter.defaultCenter().removeObserver(observer, name: name, object: object)
     }
 
-    func getRingbackUri(_type: String) -> NSURL? {
-        let fileBundle: String = "incallmanager_ringback"
-        let fileBundleExt: String = "mp3"
-        let fileSysWithExt: String = "vc~ringing.caf"
-        let fileSysPath: String = "/System/Library/Audio/UISounds"
-        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type)
-        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleRingbackUri, &self.defaultRingbackUri)
-    }
-
-    func startRingback(ringbackUriType: String) -> Void {
+    // --- _ringbackUriType: never go here with  be empty string.
+    func startRingback(_ringbackUriType: String) -> Void {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startRingback()")
+        print("startRingback(): UriType=\(_ringbackUriType)")
         do {
             if self.mRingback != nil {
                 if self.mRingback.playing {
+                    print("startRingback(): is already playing")
                     return
                 } else {
                     self.stopRingback()
                 }
             }
+            // ios don't have embedded DTMF tone generator. use system dtmf sound files.
+            let ringbackUriType: String = (_ringbackUriType == "_DTMF_" ? "_DEFAULT_" : _ringbackUriType)
             let ringbackUri: NSURL? = getRingbackUri(ringbackUriType)
             if ringbackUri == nil {
-                print("no available ringback")
+                print("startRingback(): no available ringback")
                 return
             }
             //self.storeOriginalAudioSetup()
@@ -233,29 +228,25 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    func getBusytoneUri(_type: String) -> NSURL? {
-        let fileBundle: String = "incallmanager_busytone"
-        let fileBundleExt: String = "mp3"
-        let fileSysWithExt: String = "ct-busy.caf" //ct-congestion.caf
-        let fileSysPath: String = "/System/Library/Audio/UISounds"
-        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type)
-        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleBusytoneUri, &self.defaultBusytoneUri)
-    }
-
-    func startBusytone(busytoneUriType: String) -> Bool {
+    // --- _busytoneUriType: never go here with  be empty string.
+    func startBusytone(_busytoneUriType: String) -> Bool {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startBusytone()")
+        print("startBusytone(): UriType=\(_busytoneUriType)")
         do {
             if self.mBusytone != nil {
                 if self.mBusytone.playing {
+                    print("startBusytone(): is already playing")
                     return false
                 } else {
                     self.stopBusytone()
                 }
             }
+
+            // ios don't have embedded DTMF tone generator. use system dtmf sound files.
+            let busytoneUriType: String = (_busytoneUriType == "_DTMF_" ? "_DEFAULT_" : _busytoneUriType)
             let busytoneUri: NSURL? = getBusytoneUri(busytoneUriType)
             if busytoneUri == nil {
-                print("no available busytone")
+                print("startBusytone(): no available media")
                 return false
             }
             //self.storeOriginalAudioSetup()
@@ -287,21 +278,14 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    func getRingtoneUri(_type: String) -> NSURL? {
-        let fileBundle: String = "incallmanager_ringtone"
-        let fileBundleExt: String = "mp3"
-        let fileSysWithExt: String = "Opening.m4r" //Marimba.m4r
-        let fileSysPath: String = "/Library/Ringtones"
-        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type)
-        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleRingtoneUri, &self.defaultRingtoneUri)
-    }
-
+    // --- ringtoneUriType May be empty
     @objc func startRingtone(ringtoneUriType: String) -> Void {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startRingtone()");
+        print("startRingtone(): UriType=\(ringtoneUriType)")
         do {
             if self.mRingtone != nil {
                 if self.mRingtone.playing {
+                    print("startRingtone(): is already playing.")
                     return
                 } else {
                     self.stopRingtone()
@@ -309,9 +293,11 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             }
             let ringtoneUri: NSURL? = getRingtoneUri(ringtoneUriType)
             if ringtoneUri == nil {
-                print("no available ringtone")
+                print("startRingtone(): no available media")
                 return
             }
+            
+            // --- ios has Ringer/Silent switch, so just play without check ringer volume.
             self.storeOriginalAudioSetup()
             self.mRingtone = try AVAudioPlayer(contentsOfURL: ringtoneUri!)
             self.mRingtone.delegate = self
@@ -339,6 +325,33 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    func getRingbackUri(_type: String) -> NSURL? {
+        let fileBundle: String = "incallmanager_ringback"
+        let fileBundleExt: String = "mp3"
+        let fileSysWithExt: String = "vc~ringing.caf"
+        let fileSysPath: String = "/System/Library/Audio/UISounds"
+        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type) // --- you can't get default user perfrence sound in ios
+        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleRingbackUri, &self.defaultRingbackUri)
+    }
+
+    func getBusytoneUri(_type: String) -> NSURL? {
+        let fileBundle: String = "incallmanager_busytone"
+        let fileBundleExt: String = "mp3"
+        let fileSysWithExt: String = "ct-busy.caf" //ct-congestion.caf
+        let fileSysPath: String = "/System/Library/Audio/UISounds"
+        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type) // --- you can't get default user perfrence sound in ios
+        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleBusytoneUri, &self.defaultBusytoneUri)
+    }
+
+    func getRingtoneUri(_type: String) -> NSURL? {
+        let fileBundle: String = "incallmanager_ringtone"
+        let fileBundleExt: String = "mp3"
+        let fileSysWithExt: String = "Opening.m4r" //Marimba.m4r
+        let fileSysPath: String = "/Library/Ringtones"
+        let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type) // --- you can't get default user perfrence sound in ios
+        return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleRingtoneUri, &self.defaultRingtoneUri)
+    }
+
     func getAudioUri(_type: String, _ fileBundle: String, _ fileBundleExt: String, _ fileSysWithExt: String, _ fileSysPath: String, inout _ uriBundle: NSURL!, inout _ uriDefault: NSURL!) -> NSURL? {
         var type = _type
         if type == "_BUNDLE_" {
@@ -358,11 +371,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         if uriDefault == nil {
             let target: String = "\(fileSysPath)/\(type)"
             uriDefault = self.getSysFileUri(target)
-            if uriDefault == nil {
-                return nil
-            }
         }
-        return uriDefault;
+        return uriDefault
     }
 
     func getSysFileUri(target: String) -> NSURL? {
@@ -403,5 +413,3 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
 }
-
-
