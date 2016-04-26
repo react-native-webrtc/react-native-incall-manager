@@ -12,6 +12,7 @@ import android.hardware.SensorManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.media.ToneGenerator;
 import android.net.Uri;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
@@ -37,7 +38,8 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.File;
-
+import java.util.Map;
+import java.util.HashMap;
 
 public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     private static final String REACT_NATIVE_MODULE_NAME = "InCallManager";
@@ -77,15 +79,22 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     // --- same as: RingtoneManager.getActualDefaultRingtoneUri(reactContext, RingtoneManager.TYPE_RINGTONE);
     private Uri defaultRingtoneUri = Settings.System.DEFAULT_RINGTONE_URI;
-    private Uri defaultRingbackUri = Settings.System.DEFAULT_NOTIFICATION_URI;
-    //private Uri defaultAlarmAlertUri = Settings.System.DEFAULT_ALARM_ALERT_URI;
-    //private Uri defaultNotificationUri = Settings.System.DEFAULT_NOTIFICATION_URI;
+    private Uri defaultRingbackUri = Settings.System.DEFAULT_RINGTONE_URI;
+    private Uri defaultBusytoneUri = Settings.System.DEFAULT_NOTIFICATION_URI;
+    //private Uri defaultAlarmAlertUri = Settings.System.DEFAULT_ALARM_ALERT_URI; // --- too annoying
     private Uri bundleRingtoneUri;
     private Uri bundleRingbackUri;
     private Uri bundleBusytoneUri;
-    private MediaPlayer mRingtone;
-    private MediaPlayer mRingback;
-    private MediaPlayer mBusytone;
+    private Map<String, Uri> audioUriMap;
+    private MyPlayerInterface mRingtone;
+    private MyPlayerInterface mRingback;
+    private MyPlayerInterface mBusytone;
+
+    interface MyPlayerInterface {
+        public boolean isPlaying();
+        public void startPlay(Map<String, Object> data);
+        public void stopPlay();
+    }
 
     @Override
     public String getName() {
@@ -103,6 +112,13 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         mSensorManager = (SensorManager)reactContext.getSystemService(Context.SENSOR_SERVICE);
         proximitySensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         checkProximitySupport();
+        audioUriMap = new HashMap<String, Uri>();
+        audioUriMap.put("defaultRingtoneUri", defaultRingtoneUri);
+        audioUriMap.put("defaultRingbackUri", defaultRingbackUri);
+        audioUriMap.put("defaultBusytoneUri", defaultBusytoneUri);
+        audioUriMap.put("bundleRingtoneUri", bundleRingtoneUri);
+        audioUriMap.put("bundleRingbackUri", bundleRingbackUri);
+        audioUriMap.put("bundleBusytoneUri", bundleBusytoneUri);
         Log.d(TAG, "InCallManager initialized");
     }
 
@@ -577,15 +593,15 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void stop(final boolean busytone) {
+    public void stop(final String busytoneUriType) {
         if (audioManagerInitialized) {
             stopRingback();
-            if (busytone && startBusytone()) {
+            if (!busytoneUriType.isEmpty() && startBusytone(busytoneUriType)) {
                 // play busytone first, and call this func again when finish
-                Log.d(TAG, "play busytone before stop");
+                Log.d(TAG, "play busytone before stop InCallManager");
                 return;
             } else {
-                Log.d(TAG, "stop audioRouteManager");
+                Log.d(TAG, "stop() InCallManager");
                 stopEvents();
                 stopBusytone();
                 restoreOriginalAudioSetup();
@@ -735,56 +751,52 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
-    private Uri getRingbackUri(final String type) {
-        if (type.equals("bundle")) {
-            if (bundleRingbackUri == null) {
-                int res = reactContext.getResources().getIdentifier("incallmanager_ringback", "raw", reactContext.getPackageName());
-                Log.d(TAG, "getRingbackUri() checking bundle uri res id: " + Integer.toString(res));
-                if ( res != 0 ) {
-                    bundleRingbackUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + Integer.toString(res));
-                    return bundleRingbackUri;
-                } else {
-                    Log.d(TAG, "getRingbackUri() bundle not exist, use sys");
-                    bundleRingbackUri = null;
-                }
-            } else {
-                return bundleRingbackUri;
-            }
-        }
-        return defaultRingbackUri; // default fallback
-    }
-
+    /** 
+     * This is part of start() process. 
+     * ringbackUriType must not empty. empty means do not play.
+     */
     public void startRingback(final String ringbackUriType) {
+        if (ringbackUriType.isEmpty()) {
+            return;
+        }
         try {
+            Log.d(TAG, "startRingback(): UriType=" + ringbackUriType);
             if (mRingback != null) {
                 if (mRingback.isPlaying()) {
+                    Log.d(TAG, "startRingback(): is already playing");
                     return;
                 } else {
                     stopRingback(); // --- use brandnew instance
                 }
             }
-            Uri ringbackUri = getRingbackUri(ringbackUriType);
-            mRingback = new MediaPlayer();
-            mRingback.setDataSource(reactContext, ringbackUri);
-            // --- Not necessary to check ringer mode, because it is incall
-            mRingback.setLooping(true);
-            setMediaPlayerEvents(mRingback, "mRingback");
-            //mRingback.setAudioStreamType(AudioManager.STREAM_DTMF);
-            mRingback.setAudioStreamType(AudioManager.STREAM_VOICE_CALL);
+
+            Uri ringbackUri;
+            Map data = new HashMap<String, Object>();
+            if (ringbackUriType.equals("_DTMF_")) {
+                mRingback = new myToneGenerator(myToneGenerator.RINGBACK);
+                mRingback.startPlay(data);
+                return;
+            } else {
+                ringbackUri = getRingbackUri(ringbackUriType);
+                if (ringbackUri == null) {
+                    Log.d(TAG, "startRingback(): no available media");
+                    return;    
+                }
+            }
+
+            mRingback = new myMediaPlayer();
+            data.put("sourceUri", ringbackUri);
+            data.put("setLooping", true);
+            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
             /*
-            if (android.os.Build.VERSION.SDK_INT >= 21) {
-                mRingback.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED) // --- ringbacktone audibility must be ensured.
-                        .setLegacyStreamType(AudioManager.STREAM_VOICE_CALL)
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        //.setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH) // --- CONTENT_TYPE_MUSIC?
-                        .build()
-                );
-            }*/
-            // -- will start at onPrepared() event
-            mRingback.prepareAsync();
+            TODO: for API 21
+            data.put("name", "mRingback");
+            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
+            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION); // USAGE_VOICE_COMMUNICATION_SIGNALLING ?
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH); // CONTENT_TYPE_MUSIC ?
+            */
+            setMediaPlayerEvents((MediaPlayer)mRingback, "mRingback");
+            mRingback.startPlay(data);
         } catch(Exception e) {
             Log.d(TAG, "startRingback() failed");
         }   
@@ -794,64 +806,66 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void stopRingback() {
         try {
             if (mRingback != null) {
-                mRingback.stop();
-                mRingback.reset();
-                mRingback.release();
+                mRingback.stopPlay();
                 mRingback = null;
-                // --- ringback is part of start(), so the responsibility belongs to stop()
-                //restoreOriginalAudioSetup();
             }
         } catch(Exception e) {
             Log.d(TAG, "stopRingback() failed");
         }   
     }
 
-    public boolean startBusytone() {
-        // --- this func is a part of optional stop() process.
-        // --- return false to indicate play tone failed and should be 
+    /** 
+     * This is part of start() process. 
+     * busytoneUriType must not empty. empty means do not play.
+     * return false to indicate play tone failed and should be stop() immediately
+     * otherwise, it will stop() after a tone completed.
+     */
+    public boolean startBusytone(final String busytoneUriType) {
+        if (busytoneUriType.isEmpty()) {
+            return false;
+        }
         try {
+            Log.d(TAG, "startBusytone(): UriType=" + busytoneUriType);
             if (mBusytone != null) {
                 if (mBusytone.isPlaying()) {
+                    Log.d(TAG, "startBusytone(): is already playing");
                     return false;
                 } else {
                     stopBusytone(); // --- use brandnew instance
                 }
             }
-            if (bundleBusytoneUri == null) {
-                int res = reactContext.getResources().getIdentifier("incallmanager_busytone", "raw", reactContext.getPackageName());
-                if ( res != 0 ) {
-                    bundleBusytoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + Integer.toString(res));
-                } else {
-                    Log.d(TAG, "getBusytoneUri() busytone not found.");
-                    bundleBusytoneUri = null;
-                    return false;
+
+            Uri busytoneUri;
+            Map data = new HashMap<String, Object>();
+            if (busytoneUriType.equals("_DTMF_")) {
+                mBusytone = new myToneGenerator(myToneGenerator.BUSY);
+                mBusytone.startPlay(data);
+                return true;
+            } else {
+                busytoneUri = getBusytoneUri(busytoneUriType);
+                if (busytoneUri == null) {
+                    Log.d(TAG, "startBusytone(): no available media");
+                    return false;    
                 }
             }
 
-            mBusytone = new MediaPlayer();
-            mBusytone.setDataSource(reactContext, bundleBusytoneUri);
-            // --- Not necessary to check ringer mode, because it is incall
-            mBusytone.setLooping(false);
-            setMediaPlayerEvents(mBusytone, "mBusytone");
-            //mBusytone.setAudioStreamType(AudioManager.STREAM_DTMF);
-            mBusytone.setAudioStreamType(AudioManager.STREAM_VOICE_CALL);
+            mBusytone = new myMediaPlayer();
+            data.put("sourceUri", busytoneUri);
+            data.put("setLooping", false);
+            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
             /*
-            if (android.os.Build.VERSION.SDK_INT >= 21) {
-                mBusytone.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED) // --- busytonetone audibility must be ensured.
-                        .setLegacyStreamType(AudioManager.STREAM_DTMF)
-                        //.setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH) // --- CONTENT_TYPE_MUSIC?
-                        .build()
-                );
-            }*/
-            // -- will start at onPrepared() event
-            mBusytone.prepareAsync();
+            TODO: for API 21
+            data.put("name", "mBusytone");
+            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
+            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING); // USAGE_VOICE_COMMUNICATION ?
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH);
+            */
+            setMediaPlayerEvents((MediaPlayer)mBusytone, "mBusytone");
+            mBusytone.startPlay(data);
             return true;
         } catch(Exception e) {
             Log.d(TAG, "startBusytone() failed");
+            Log.d(TAG, e.getMessage());
             return false;
         }   
     }
@@ -859,11 +873,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void stopBusytone() {
         try {
             if (mBusytone != null) {
-                // --- busytone is part of start(), so the responsibility belongs to stop()
-                // --- and this function will be called when stop()
-                mBusytone.stop();
-                mBusytone.reset();
-                mBusytone.release();
+                mBusytone.stopPlay();
                 mBusytone = null;
             }
         } catch(Exception e) {
@@ -871,61 +881,48 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }   
     }
 
-    private Uri getRingtoneUri(final String type) {
-        if (type.equals("bundle")) {
-            if (bundleRingtoneUri == null) {
-                int res = reactContext.getResources().getIdentifier("incallmanager_ringtone", "raw", reactContext.getPackageName());
-                if ( res != 0 ) {
-                    bundleRingtoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + Integer.toString(res));
-                    //bundleRingtoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + R.raw.incallmanager_ringtone);
-                    //bundleRingtoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/raw/incallmanager_ringtone");
-                    return bundleRingtoneUri;
-                } else {
-                    Log.d(TAG, "getRingtoneUri() bundle not exist, use sys");
-                    bundleRingtoneUri = null;
-                }
-            } else {
-                return bundleRingtoneUri;
-            }
-        }
-        return defaultRingtoneUri; // default fallback
-    }
-
     @ReactMethod
     public void startRingtone(final String ringtoneUriType) {
         try {
+            Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
             if (mRingtone != null) {
                 if (mRingtone.isPlaying()) {
+                    Log.d(TAG, "startRingtone(): is already playing");
                     return;
                 } else {
                     stopRingtone(); // --- use brandnew instance
                 }
             }
-            storeOriginalAudioSetup();
-            Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
-            mRingtone = new MediaPlayer();
-            mRingtone.setDataSource(reactContext, ringtoneUri);
+
             //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
             //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
-            if (audioManager.getStreamVolume(AudioManager.STREAM_RING) != 0) {
-                mRingtone.setLooping(true);
-                setMediaPlayerEvents(mRingtone, "mRingtone");
-                mRingtone.setAudioStreamType(AudioManager.STREAM_RING);
-                /*
-                if (android.os.Build.VERSION.SDK_INT >= 21) {
-                    mRingtone.setAudioAttributes(
-                        new AudioAttributes.Builder()
-                            .setLegacyStreamType(AudioManager.STREAM_RING)
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)// --- USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    );
-                }*/
-                // -- will start at onPrepared() event
-                mRingtone.prepareAsync();
-            } else {
-                Log.d(TAG, "ringer is silent");
+            if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
+                Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
+                return;
             }
+
+            // --- there is no _DTMF_ option in startRingtone()
+            Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
+            if (ringtoneUri == null) {
+                Log.d(TAG, "startRingtone(): no available media");
+                return;    
+            }
+
+            storeOriginalAudioSetup();
+            Map data = new HashMap<String, Object>();
+            mRingtone = new myMediaPlayer();
+            data.put("sourceUri", ringtoneUri);
+            data.put("setLooping", true);
+            data.put("audioStream", AudioManager.STREAM_RING);
+            /*
+            TODO: for API 21
+            data.put("name", "mRingtone");
+            data.put("audioFlag", 0);
+            data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
+            */
+            setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
+            mRingtone.startPlay(data);
         } catch(Exception e) {
             Log.d(TAG, "startRingtone() failed");
         }   
@@ -935,9 +932,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void stopRingtone() {
         try {
             if (mRingtone != null) {
-                mRingtone.stop();
-                mRingtone.reset();
-                mRingtone.release();
+                mRingtone.stopPlay();
                 mRingtone = null;
                 restoreOriginalAudioSetup();
             }
@@ -992,11 +987,292 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 Log.d(TAG, String.format("MediaPlayer %s onCompletion()", name));
                 if (name.equals("mBusytone")) {
                     stopBusytone();
-                    stop(false);
+                    stop("");
                 }
             }
         });
 
+    }
+
+    private Uri getRingtoneUri(final String _type) {
+        final String fileBundle = "incallmanager_ringtone";
+        final String fileBundleExt = "mp3";
+        final String fileSysWithExt = "media_volume.ogg";
+        final String fileSysPath = "/system/media/audio/ui"; // --- every devices all ships with different in ringtone. maybe ui sounds are more "stock"
+        String type;
+        // --- _type MAY be empty
+        if (_type.equals("_DEFAULT_") ||  _type.isEmpty()) {
+            //type = fileSysWithExt;
+            return getDefaultUserUri("defaultRingtoneUri");
+        } else {
+            type = _type;
+        }
+        return getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, "bundleRingtoneUri", "defaultRingtoneUri");
+    }
+
+    private Uri getRingbackUri(final String _type) {
+        final String fileBundle = "incallmanager_ringback";
+        final String fileBundleExt = "mp3";
+        final String fileSysWithExt = "media_volume.ogg";
+        final String fileSysPath = "/system/media/audio/ui"; // --- every devices all ships with different in ringtone. maybe ui sounds are more "stock"
+        String type;
+        // --- _type would never be empty here. just in case.
+        if (_type.equals("_DEFAULT_") ||  _type.isEmpty()) {
+            //type = fileSysWithExt;
+            return getDefaultUserUri("defaultRingbackUri");
+        } else {
+            type = _type;
+        }
+        return getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, "bundleRingbackUri", "defaultRingbackUri");
+    }
+
+    private Uri getBusytoneUri(final String _type) {
+        final String fileBundle = "incallmanager_busytone";
+        final String fileBundleExt = "mp3";
+        final String fileSysWithExt = "LowBattery.ogg";
+        final String fileSysPath = "/system/media/audio/ui"; // --- every devices all ships with different in ringtone. maybe ui sounds are more "stock"
+        String type;
+        // --- _type would never be empty here. just in case.
+        if (_type.equals("_DEFAULT_") ||  _type.isEmpty()) {
+            //type = fileSysWithExt; // --- 
+            return getDefaultUserUri("defaultBusytoneUri");
+        } else {
+            type = _type;
+        }
+        return getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, "bundleBusytoneUri", "defaultBusytoneUri");
+    }
+
+    private Uri getAudioUri(final String _type, final String fileBundle, final String fileBundleExt, final String fileSysWithExt, final String fileSysPath, final String uriBundle, final String uriDefault) {
+        String type = _type;
+        if (type.equals("_BUNDLE_")) {
+            if (audioUriMap.get(uriBundle) == null) {
+                int res = reactContext.getResources().getIdentifier(fileBundle, "raw", reactContext.getPackageName());
+                if (res <= 0) {
+                    Log.d(TAG, String.format("getAudioUri() %s.%s not found in bundle.", fileBundle, fileBundleExt));
+                    audioUriMap.put(uriBundle, null);
+                    //type = fileSysWithExt;
+                    return getDefaultUserUri(uriDefault); // --- if specified bundle but not found, use default directlly
+                } else {
+                    audioUriMap.put(uriBundle, Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + Integer.toString(res)));
+                    //bundleRingtoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/" + R.raw.incallmanager_ringtone);
+                    //bundleRingtoneUri = Uri.parse("android.resource://" + reactContext.getPackageName() + "/raw/incallmanager_ringtone");
+                    Log.d(TAG, "getAudioUri() using: " + type);
+                    return audioUriMap.get(uriBundle);
+                }
+            } else {
+                Log.d(TAG, "getAudioUri() using: " + type);
+                return audioUriMap.get(uriBundle);
+            }
+        }
+
+        // --- Check file every time in case user deleted.
+        final String target = fileSysPath + "/" + type;
+        Uri _uri = getSysFileUri(target);
+        if (_uri == null) {
+            Log.d(TAG, "getAudioUri() using user default");
+            return getDefaultUserUri(uriDefault);
+        } else {
+            Log.d(TAG, "getAudioUri() using internal: " + target);
+            audioUriMap.put(uriDefault, _uri);
+            return _uri;
+        }
+    }
+
+    private Uri getSysFileUri(final String target) {
+        File file = new File(target);
+        if (file.isFile()) {
+            return Uri.fromFile(file);
+        }
+        return null;
+    }
+
+    private Uri getDefaultUserUri(final String type) {
+        // except ringtone, it doesn't suppose to be go here. and every android has different files unlike apple;
+        if (type.equals("defaultRingtoneUri")) {
+            return Settings.System.DEFAULT_RINGTONE_URI;
+        } else if (type.equals("defaultRingbackUri")) {
+            return Settings.System.DEFAULT_RINGTONE_URI;
+        } else if (type.equals("defaultBusytoneUri")) {
+            return Settings.System.DEFAULT_NOTIFICATION_URI; // --- DEFAULT_ALARM_ALERT_URI
+        } else {
+            return Settings.System.DEFAULT_NOTIFICATION_URI;
+        }
+    }
+
+    private class myToneGenerator extends Thread implements MyPlayerInterface {
+        private int toneType;
+        private int toneCategory;
+        private boolean playing = false;
+        private static final int maxWaitTimeMs = 3600000; // 1 hour fairly enough
+        private static final int loadBufferWaitTimeMs = 20;
+        private static final int toneVolume = 100; // The volume of the tone, given in percentage of maximum volume (from 0-100).
+        // --- constant in ToneGenerator all below 100
+        public static final int BEEP = 101;
+        public static final int BUSY = 102;
+        public static final int CALLEND = 103;
+        public static final int CALLWAITING = 104;
+        public static final int RINGBACK = 105;
+        public static final int SILENT = 106;
+        public int customWaitTimeMs = maxWaitTimeMs;
+
+        myToneGenerator(final int t) {
+            super();
+            toneCategory = t;
+        }
+
+        public void setCustomWaitTime(final int ms) {
+            customWaitTimeMs = ms;
+        }
+
+        @Override
+        public void startPlay(final Map setup) {
+            start();
+        }
+
+        @Override
+        public boolean isPlaying() {
+            return playing;
+        }
+
+        @Override
+        public void stopPlay() {
+            synchronized (this) {
+                if (playing) {
+                    notify();
+                }
+                playing = false;
+            }
+        }
+
+        @Override
+        public void run() {
+            int toneWaitTimeMs;
+            switch (toneCategory) {
+                case SILENT:
+                    //toneType = ToneGenerator.TONE_CDMA_SIGNAL_OFF;
+                    toneType = ToneGenerator.TONE_CDMA_ANSWER;
+                    toneWaitTimeMs = 1000;
+                    break;
+                case BUSY:
+                    //toneType = ToneGenerator.TONE_SUP_BUSY;
+                    //toneType = ToneGenerator.TONE_SUP_CONGESTION;
+                    //toneType = ToneGenerator.TONE_SUP_CONGESTION_ABBREV;
+                    //toneType = ToneGenerator.TONE_CDMA_NETWORK_BUSY;
+                    //toneType = ToneGenerator.TONE_CDMA_NETWORK_BUSY_ONE_SHOT;
+                    toneType = ToneGenerator.TONE_SUP_RADIO_NOTAVAIL;
+                    toneWaitTimeMs = 4000;
+                    break;
+                case RINGBACK:
+                    //toneType = ToneGenerator.TONE_SUP_RINGTONE;
+                    toneType = ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK;
+                    toneWaitTimeMs = maxWaitTimeMs; // [STOP MANUALLY]
+                    break;
+                case CALLEND:
+                    toneType = ToneGenerator.TONE_PROP_PROMPT;
+                    toneWaitTimeMs = 200; // plays when call ended
+                    break;
+                case CALLWAITING:
+                    //toneType = ToneGenerator.TONE_CDMA_NETWORK_CALLWAITING;
+                    toneType = ToneGenerator.TONE_SUP_CALL_WAITING;
+                    toneWaitTimeMs = maxWaitTimeMs; // [STOP MANUALLY]
+                    break;
+                case BEEP:
+                    //toneType = ToneGenerator.TONE_SUP_PIP;
+                    //toneType = ToneGenerator.TONE_CDMA_PIP;
+                    //toneType = ToneGenerator.TONE_SUP_RADIO_ACK;
+                    //toneType = ToneGenerator.TONE_PROP_BEEP;
+                    toneType = ToneGenerator.TONE_PROP_BEEP2;
+                    toneWaitTimeMs = 1000; // plays when call ended
+                    break;
+                default:
+                    // --- use ToneGenerator internal type.
+                    Log.d(TAG, "myToneGenerator: use internal tone type: " + toneCategory);
+                    toneType = toneCategory;
+                    toneWaitTimeMs = customWaitTimeMs;
+            }
+            Log.d(TAG, String.format("myToneGenerator: toneCategory: %d ,toneType: %d, toneWaitTimeMs: %d", toneCategory, toneType, toneWaitTimeMs));
+
+            ToneGenerator tg;
+            try {
+                tg = new ToneGenerator(AudioManager.STREAM_VOICE_CALL, toneVolume);
+            } catch (RuntimeException e) {
+                Log.d(TAG, "myToneGenerator: Exception caught while creating ToneGenerator: " + e);
+                return;
+            }
+
+            if (tg != null) {
+                synchronized (this) {
+                    if (!playing) {
+                        playing = true;
+                        tg.startTone(toneType);
+                        try {
+                            wait(toneWaitTimeMs + loadBufferWaitTimeMs);
+                        } catch  (InterruptedException e) {
+                            Log.d(TAG, "myToneGenerator stopped. toneType: " + toneType);
+                        }
+                        tg.stopTone();
+                    }
+                    playing = false;
+                    tg.release();
+                }
+            }
+        }
+    }
+
+    private class myMediaPlayer extends MediaPlayer implements MyPlayerInterface {
+
+        //myMediaPlayer() {
+        //    super();
+        //}
+
+        @Override
+        public void stopPlay() {
+            stop();
+            reset();
+            release();
+        }
+
+        @Override
+        public void startPlay(final Map data) {
+            try {
+                Uri sourceUri = (Uri) data.get("sourceUri");
+                boolean setLooping = (Boolean) data.get("setLooping");
+                int stream = (Integer) data.get("audioStream");
+
+                setDataSource(reactContext, sourceUri);
+                setLooping(setLooping);
+                setAudioStreamType(stream); // is better using STREAM_DTMF for ToneGenerator?
+
+                /*
+                // TODO: use modern and more explicit audio stream api
+                if (android.os.Build.VERSION.SDK_INT >= 21) {
+                    String name = (String) data.get("name");
+                    int audioFlag = (Integer) data.get("audioFlag");
+                    int audioUsage = (Integer) data.get("audioUsage");
+                    int audioContentType = (Integer) data.get("audioContentType");
+
+                    setAudioAttributes(
+                        new AudioAttributes.Builder()
+                            .setFlags(audioFlag)
+                            .setLegacyStreamType(stream)
+                            .setUsage(audioUsage)
+                            .setContentType(audioContentType)
+                            .build()
+                    );
+                }
+                */
+
+                // -- will start at onPrepared() event
+                prepareAsync();
+            } catch (Exception e) {
+                Log.d(TAG, "startPlay() failed");
+            }
+        }
+
+        @Override
+        public boolean isPlaying() {
+            return super.isPlaying();
+        }
     }
 
     @Override
@@ -1017,6 +1293,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         stopRingtone();
         stopRingback();
         stopBusytone();
-        stop(false);
+        stop("");
     }
 }
