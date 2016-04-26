@@ -1207,6 +1207,17 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 synchronized (this) {
                     if (!playing) {
                         playing = true;
+
+                        // --- make sure audio routing, or it will be wired when switch suddenly
+                        if (caller.equals("mBusytone")) {
+                            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                        } else if (caller.equals("mRingback")) {
+                            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                        } else if (caller.equals("mRingtone")) {
+                            audioManager.setMode(AudioManager.MODE_RINGTONE);
+                        } 
+                        InCallManagerModule.this.updateAudioRoute();
+
                         tg.startTone(toneType);
                         try {
                             wait(toneWaitTimeMs + loadBufferWaitTimeMs);
