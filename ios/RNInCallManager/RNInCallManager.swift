@@ -155,10 +155,14 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         print("startProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = true
 
+        //self.stopObserve(self, name: UIDeviceProximityStateDidChangeNotification, object: self.currentDevice)
         self.startObserve(UIDeviceProximityStateDidChangeNotification, object: self.currentDevice, queue: nil) { notification in
             let state: Bool = self.currentDevice.proximityState
-            print("Proximity Changed. isNear: \(state)")
-            self.bridge.eventDispatcher.sendDeviceEventWithName("Proximity", body: ["isNear": state])
+            if state != self.proximityIsNear {
+                print("Proximity Changed. isNear: \(state)")
+                self.proximityIsNear = state
+                self.bridge.eventDispatcher.sendDeviceEventWithName("Proximity", body: ["isNear": state])
+            }
         }
         
         self.isProximityRegistered = true
@@ -328,8 +332,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     func getRingbackUri(_type: String) -> NSURL? {
         let fileBundle: String = "incallmanager_ringback"
         let fileBundleExt: String = "mp3"
-        let fileSysWithExt: String = "vc~ringing.caf"
-        let fileSysPath: String = "/System/Library/Audio/UISounds"
+        //let fileSysWithExt: String = "vc~ringing.caf" // --- ringtone of facetine, but can't play it.
+        //let fileSysPath: String = "/System/Library/Audio/UISounds"
+        let fileSysWithExt: String = "Marimba.m4r"
+        let fileSysPath: String = "/Library/Ringtones"
         let type = (_type == "" || _type == "_DEFAULT_" ? fileSysWithExt : _type) // --- you can't get default user perfrence sound in ios
         return self.getAudioUri(type, fileBundle, fileBundleExt, fileSysWithExt, fileSysPath, &self.bundleRingbackUri, &self.defaultRingbackUri)
     }
@@ -376,15 +382,18 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     func getSysFileUri(target: String) -> NSURL? {
-        let fileManager: NSFileManager = NSFileManager()
-        let url: NSURL = NSURL(fileURLWithPath: target, isDirectory: false)
-        var isTargetDirectory: ObjCBool = ObjCBool(false)
-        if fileManager.fileExistsAtPath(url.path!, isDirectory: &isTargetDirectory) {
-            if !isTargetDirectory {
-                //print("\(url.URLByDeletingPathExtension?.lastPathComponent)")
-                return url
+        if let url: NSURL? = NSURL(fileURLWithPath: target, isDirectory: false) {
+            if let path = url?.path {
+                let fileManager: NSFileManager = NSFileManager()
+                var isTargetDirectory: ObjCBool = ObjCBool(false)
+                if fileManager.fileExistsAtPath(path, isDirectory: &isTargetDirectory) {
+                    if !isTargetDirectory {
+                        return url
+                    }
+                }
             }
         }
+        print("can not get url for \(target)")
         return nil
     }
 
@@ -394,7 +403,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         if filename == self.bundleBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent
             || filename == self.defaultBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent {
-            self.stopBusytone()
+            //self.stopBusytone()
+            print("busytone finished, invoke stop()")
             self.stop("")
         }
         print("finished playing: \(filename)")
