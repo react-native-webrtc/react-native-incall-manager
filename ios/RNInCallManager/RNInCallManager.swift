@@ -29,6 +29,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var isProximitySupported: Bool = false
     var isProximityRegistered: Bool = false
     var proximityIsNear: Bool = false
+    var proximityObserver: NSObjectProtocol?
     var defaultAudioMode: String = AVAudioSessionModeVoiceChat
     var defaultAudioCategory: String = AVAudioSessionCategoryPlayAndRecord
     var origAudioCategory: String!
@@ -62,7 +63,6 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
         print("start() InCallManager")
         self.storeOriginalAudioSetup()
-        _ = try? self.audioSession.setActive(false)
         //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
         _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
         _ = try? self.audioSession.setMode(self.defaultAudioMode)
@@ -155,8 +155,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         print("startProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = true
 
-        //self.stopObserve(self, name: UIDeviceProximityStateDidChangeNotification, object: self.currentDevice)
-        self.startObserve(UIDeviceProximityStateDidChangeNotification, object: self.currentDevice, queue: nil) { notification in
+        self.stopObserve(self.proximityObserver, name: UIDeviceProximityStateDidChangeNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.proximityObserver = self.startObserve(UIDeviceProximityStateDidChangeNotification, object: self.currentDevice, queue: nil) { notification in
             let state: Bool = self.currentDevice.proximityState
             if state != self.proximityIsNear {
                 print("Proximity Changed. isNear: \(state)")
@@ -173,16 +173,18 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
         print("stopProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = false
-        self.stopObserve(self, name: UIDeviceProximityStateDidChangeNotification, object: self.currentDevice)
+        self.stopObserve(self.proximityObserver, name: UIDeviceProximityStateDidChangeNotification, object: nil) // --- remove all no matter what object
         self.isProximityRegistered = false
     }
 
-    func startObserve(name: String, object: AnyObject?, queue: NSOperationQueue?, block: (NSNotification) -> ()) {
-        NSNotificationCenter.defaultCenter().addObserverForName(name, object: object, queue: queue, usingBlock: block)
+    func startObserve(name: String, object: AnyObject?, queue: NSOperationQueue?, block: (NSNotification) -> ()) -> NSObjectProtocol {
+        return NSNotificationCenter.defaultCenter().addObserverForName(name, object: object, queue: queue, usingBlock: block)
     }
 
-    func stopObserve(observer: AnyObject, name: String?, object: AnyObject?) {
-        NSNotificationCenter.defaultCenter().removeObserver(observer, name: name, object: object)
+    func stopObserve(_observer: AnyObject?, name: String?, object: AnyObject?) -> Void {
+        if let observer = _observer {
+            NSNotificationCenter.defaultCenter().removeObserver(observer, name: name, object: object)
+        }
     }
 
     // --- _ringbackUriType: never go here with  be empty string.
@@ -212,10 +214,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingback.prepareToPlay()
             //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setActive(false)
             _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
             _ = try? self.audioSession.setMode(self.defaultAudioMode)
-            _ = try? self.audioSession.setActive(true)
             self.mRingback.play()
         } catch {
             print("startRingtone() failed")
@@ -260,10 +260,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mBusytone.prepareToPlay()
             //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setActive(false)
             _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
             _ = try? self.audioSession.setMode(self.defaultAudioMode)
-            _ = try? self.audioSession.setActive(true)
             self.mBusytone.play()
         } catch {
             print("startRingtone() failed")
@@ -309,10 +307,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingtone.prepareToPlay()
             //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setActive(false)
             _ = try? self.audioSession.setCategory(AVAudioSessionCategorySoloAmbient)
             _ = try? self.audioSession.setMode(AVAudioSessionModeDefault)
-            _ = try? self.audioSession.setActive(true)
             self.mRingtone.play()
         } catch {
             print("startRingtone() failed")
@@ -401,13 +397,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         // --- this only called when all loop played. it means, an infinite (numberOfLoops = -1) loop will never into here.
         //if player.url!.isFileReferenceURL() {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
+        print("finished playing: \(filename)")
         if filename == self.bundleBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent
             || filename == self.defaultBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent {
             //self.stopBusytone()
             print("busytone finished, invoke stop()")
             self.stop("")
         }
-        print("finished playing: \(filename)")
     }
 
     func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer!, error: NSError!) {
