@@ -602,8 +602,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 return;
             } else {
                 Log.d(TAG, "stop() InCallManager");
-                stopEvents();
                 stopBusytone();
+                stopEvents();
                 restoreOriginalAudioSetup();
                 audioManagerInitialized = false;
             }
@@ -772,6 +772,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
             Uri ringbackUri;
             Map data = new HashMap<String, Object>();
+            data.put("name", "mRingback");
             if (ringbackUriType.equals("_DTMF_")) {
                 mRingback = new myToneGenerator(myToneGenerator.RINGBACK);
                 mRingback.startPlay(data);
@@ -790,7 +791,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
             /*
             TODO: for API 21
-            data.put("name", "mRingback");
             data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
             data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION); // USAGE_VOICE_COMMUNICATION_SIGNALLING ?
             data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH); // CONTENT_TYPE_MUSIC ?
@@ -837,6 +837,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
             Uri busytoneUri;
             Map data = new HashMap<String, Object>();
+            data.put("name", "mBusytone");
             if (busytoneUriType.equals("_DTMF_")) {
                 mBusytone = new myToneGenerator(myToneGenerator.BUSY);
                 mBusytone.startPlay(data);
@@ -855,7 +856,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
             /*
             TODO: for API 21
-            data.put("name", "mBusytone");
             data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
             data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING); // USAGE_VOICE_COMMUNICATION ?
             data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH);
@@ -911,12 +911,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             storeOriginalAudioSetup();
             Map data = new HashMap<String, Object>();
             mRingtone = new myMediaPlayer();
+            data.put("name", "mRingtone");
             data.put("sourceUri", ringtoneUri);
             data.put("setLooping", true);
             data.put("audioStream", AudioManager.STREAM_RING);
             /*
             TODO: for API 21
-            data.put("name", "mRingtone");
             data.put("audioFlag", 0);
             data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
             data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
@@ -986,7 +986,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             public void onCompletion(MediaPlayer mp) {
                 Log.d(TAG, String.format("MediaPlayer %s onCompletion()", name));
                 if (name.equals("mBusytone")) {
-                    stopBusytone();
+                    Log.d(TAG, "MyMediaPlayer(): invoke stop()");
                     stop("");
                 }
             }
@@ -1114,6 +1114,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         public static final int RINGBACK = 105;
         public static final int SILENT = 106;
         public int customWaitTimeMs = maxWaitTimeMs;
+        public String caller;
 
         myToneGenerator(final int t) {
             super();
@@ -1125,7 +1126,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
 
         @Override
-        public void startPlay(final Map setup) {
+        public void startPlay(final Map data) {
+            String name = (String) data.get("name");
+            caller = name;
             start();
         }
 
@@ -1197,7 +1200,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 tg = new ToneGenerator(AudioManager.STREAM_VOICE_CALL, toneVolume);
             } catch (RuntimeException e) {
                 Log.d(TAG, "myToneGenerator: Exception caught while creating ToneGenerator: " + e);
-                return;
+                tg = null;
             }
 
             if (tg != null) {
@@ -1215,6 +1218,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     playing = false;
                     tg.release();
                 }
+            }
+            Log.d(TAG, "MyToneGenerator(): play finished. caller=" + caller);
+            if (caller.equals("mBusytone")) {
+                Log.d(TAG, "MyToneGenerator(): invoke stop()");
+                InCallManagerModule.this.stop("");
             }
         }
     }
@@ -1238,6 +1246,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 Uri sourceUri = (Uri) data.get("sourceUri");
                 boolean setLooping = (Boolean) data.get("setLooping");
                 int stream = (Integer) data.get("audioStream");
+                String name = (String) data.get("name");
 
                 setDataSource(reactContext, sourceUri);
                 setLooping(setLooping);
@@ -1246,7 +1255,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 /*
                 // TODO: use modern and more explicit audio stream api
                 if (android.os.Build.VERSION.SDK_INT >= 21) {
-                    String name = (String) data.get("name");
                     int audioFlag = (Integer) data.get("audioFlag");
                     int audioUsage = (Integer) data.get("audioUsage");
                     int audioContentType = (Integer) data.get("audioContentType");
