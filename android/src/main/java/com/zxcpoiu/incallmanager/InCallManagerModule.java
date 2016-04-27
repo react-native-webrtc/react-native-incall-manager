@@ -64,7 +64,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private int origRingerMode = AudioManager.RINGER_MODE_NORMAL;
     private boolean defaultSpeakerOn = false;
     private int defaultAudioMode = AudioManager.MODE_IN_COMMUNICATION;
-    private boolean forceSpeakerOn = false;
+    private int forceSpeakerOn = 0;
     private boolean automatic = true;
     private boolean isProximitySupported = false;
     private boolean isProximityRegistered = false;
@@ -581,9 +581,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             storeOriginalAudioSetup();
             startEvents();
             // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
-            setMicrophoneMute(false);
             //getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
             audioManager.setMode(defaultAudioMode);
+            setSpeakerphoneOn(defaultSpeakerOn);
+            setMicrophoneMute(false);
+            forceSpeakerOn = 0;
             if (!ringbackUriType.isEmpty()) {
                 startRingback(ringbackUriType);
             }
@@ -604,6 +606,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 Log.d(TAG, "stop() InCallManager");
                 stopBusytone();
                 stopEvents();
+                setSpeakerphoneOn(false);
+                setMicrophoneMute(false);
+                forceSpeakerOn = 0;
                 restoreOriginalAudioSetup();
                 audioManagerInitialized = false;
             }
@@ -689,9 +694,14 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     private void updateAudioRoute() {
-        if (forceSpeakerOn) {
-            Log.d(TAG, "updateAudioRoute() forceSpeakerOn. speaker: true");
-            setSpeakerphoneOn(true);
+        if (forceSpeakerOn != 0) { // 0 - default action
+            if (forceSpeakerOn == 1) { // 1 - on
+                Log.d(TAG, "updateAudioRoute() forceSpeakerOn. speaker: true");
+                setSpeakerphoneOn(true);
+            } else { // -1 - off
+                Log.d(TAG, "updateAudioRoute() forceSpeakerOn. speaker: false");
+                setSpeakerphoneOn(false);
+            }
         } else if (audioManager.isWiredHeadsetOn() || audioManager.isBluetoothA2dpOn() || audioManager.isBluetoothScoOn()) {
             Log.d(TAG, "updateAudioRoute() has headphone plugged. speaker: false");
             setSpeakerphoneOn(false);
@@ -734,13 +744,20 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
+    /**
+     * flag: Int
+     * 0: use default action
+     * 1: force speaker on
+     * 2: force speaker off
+     */
     @ReactMethod
-    public void setForceSpeakerphoneOn(final boolean enable) {
-        forceSpeakerOn = enable;
-        if (forceSpeakerOn) {
-            Log.d(TAG, "setForceSpeakerphoneOn()");
-            setSpeakerphoneOn(true);
+    public void setForceSpeakerphoneOn(final int flag) {
+        if (flag < -1 || flag > 1) {
+            return;
         }
+        Log.d(TAG, "setForceSpeakerphoneOn() flag: " + flag);
+        forceSpeakerOn = flag;
+        updateAudioRoute();
     }
 
     @ReactMethod

@@ -28,9 +28,9 @@ var InCallManager = {
         enable = (enable === true) ? true : false;
         _InCallManager.setSpeakerphoneOn(enable);
     },
-    setForceSpeakerphoneOn: function(enable) {
-        enable = (enable === true) ? true : false;
-        _InCallManager.setForceSpeakerphoneOn(enable);
+    setForceSpeakerphoneOn: function(_flag) {
+        let flag = (typeof _flag === "boolean") ? (_flag) ? 1 : -1 : 0;
+        _InCallManager.setForceSpeakerphoneOn(flag);
     },
     setMicrophoneMute: function(enable) {
         enable = (enable === true) ? true : false;
