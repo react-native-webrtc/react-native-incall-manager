@@ -36,7 +36,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var origAudioMode: String!
     var audioSessionInitialized: Bool = false
     let automatic: Bool = true
-    var forceSpeakerOn: Bool = false
+    var forceSpeakerOn: Int = 0 //UInt8?
   
     //@objc func initWithBridge(_bridge: RCTBridge) {
         //self.bridge = _bridge
@@ -63,6 +63,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
         print("start() InCallManager")
         self.storeOriginalAudioSetup()
+        self.forceSpeakerOn = 0;
         //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
         _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
         _ = try? self.audioSession.setMode(self.defaultAudioMode)
@@ -94,6 +95,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             _ = try? self.audioSession.setActive(false, withOptions: .NotifyOthersOnDeactivation)
             self.setKeepScreenOn(false)
             NSNotificationCenter.defaultCenter().removeObserver(self)
+            self.forceSpeakerOn = 0;
             self.audioSessionInitialized = false
         }
     }
@@ -118,13 +120,18 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         print("ios doesn't support setSpeakerphoneOn()")
     }
 
-    @objc func setForceSpeakerphoneOn(enable: Bool) -> Void {
-        self.forceSpeakerOn = enable
-        print("setForceSpeakerphoneOn(\(enable))")
-        if self.forceSpeakerOn {
+    @objc func setForceSpeakerphoneOn(flag: Int) -> Void {
+        self.forceSpeakerOn = flag
+        print("setForceSpeakerphoneOn(\(flag))")
+        if self.forceSpeakerOn == 1 { // force on
             _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.Speaker)
-        } else {
+            _ = try? self.audioSession.setMode(AVAudioSessionModeVideoChat)
+        } else if self.forceSpeakerOn == -1 { //force off
             _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.None)
+            _ = try? self.audioSession.setMode(AVAudioSessionModeVoiceChat)
+        } else { // use default behavior
+            _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.None)
+            _ = try? self.audioSession.setMode(self.defaultAudioMode)
         }
     }
 
