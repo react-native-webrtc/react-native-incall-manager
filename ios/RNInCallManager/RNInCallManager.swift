@@ -45,7 +45,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.currentDevice = UIDevice.currentDevice()
         self.audioSession = AVAudioSession.sharedInstance()
         self.checkProximitySupport()
-        print("InCallManager initialized")
+        NSLog("InCallManager initialized")
     }
 
     deinit {
@@ -61,7 +61,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         } else {
             self.defaultAudioMode = AVAudioSessionModeVoiceChat
         }
-        print("start() InCallManager")
+        NSLog("start() InCallManager")
         self.storeOriginalAudioSetup()
         self.forceSpeakerOn = 0;
         //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
@@ -85,10 +85,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.stopRingback()
         if !(busytoneUriType ?? "").isEmpty && self.startBusytone(busytoneUriType) {
             // play busytone first, and call this func again when finish
-            print("play busytone before stop InCallManager")
+            NSLog("play busytone before stop InCallManager")
             return
         } else {
-            print("stop() InCallManager")
+            NSLog("stop() InCallManager")
             self.restoreOriginalAudioSetup()
             self.stopBusytone()
             self.stopProximitySensor()
@@ -101,15 +101,15 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func turnScreenOn() -> Void {
-        print("ios doesn't support turnScreenOn()")
+        NSLog("ios doesn't support turnScreenOn()")
     }
 
     @objc func turnScreenOff() -> Void {
-        print("ios doesn't support turnScreenOff()")
+        NSLog("ios doesn't support turnScreenOff()")
     }
 
     func updateAudioRoute() -> Void {
-        print("ios doesn't support updateAudioRoute()")
+        NSLog("ios doesn't support updateAudioRoute()")
     }
 
     @objc func setKeepScreenOn(enable: Bool) -> Void {
@@ -117,12 +117,12 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func setSpeakerphoneOn(enable: Bool) -> Void {
-        print("ios doesn't support setSpeakerphoneOn()")
+        NSLog("ios doesn't support setSpeakerphoneOn()")
     }
 
     @objc func setForceSpeakerphoneOn(flag: Int) -> Void {
         self.forceSpeakerOn = flag
-        print("setForceSpeakerphoneOn(\(flag))")
+        NSLog("setForceSpeakerphoneOn(\(flag))")
         if self.forceSpeakerOn == 1 { // force on
             _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.Speaker)
             _ = try? self.audioSession.setMode(AVAudioSessionModeVideoChat)
@@ -136,17 +136,17 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func setMicrophoneMute(enable: Bool) -> Void {
-        print("ios doesn't support setMicrophoneMute()")
+        NSLog("ios doesn't support setMicrophoneMute()")
     }
 
     func storeOriginalAudioSetup() -> Void {
-        print("storeOriginalAudioSetup()")
+        NSLog("storeOriginalAudioSetup()")
         self.origAudioCategory = self.audioSession.category 
         self.origAudioMode = self.audioSession.mode
     }
 
     func restoreOriginalAudioSetup() -> Void {
-        print("restoreOriginalAudioSetup()")
+        NSLog("restoreOriginalAudioSetup()")
         _ = try? self.audioSession.setCategory(self.origAudioCategory)
         _ = try? self.audioSession.setMode(self.origAudioMode)
     }
@@ -159,14 +159,14 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     func startProximitySensor() -> Void {
         guard !self.isProximityRegistered else { return }
-        print("startProximitySensor()")
+        NSLog("startProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = true
 
         self.stopObserve(self.proximityObserver, name: UIDeviceProximityStateDidChangeNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
         self.proximityObserver = self.startObserve(UIDeviceProximityStateDidChangeNotification, object: self.currentDevice, queue: nil) { notification in
             let state: Bool = self.currentDevice.proximityState
             if state != self.proximityIsNear {
-                print("Proximity Changed. isNear: \(state)")
+                NSLog("Proximity Changed. isNear: \(state)")
                 self.proximityIsNear = state
                 self.bridge.eventDispatcher.sendDeviceEventWithName("Proximity", body: ["isNear": state])
             }
@@ -178,7 +178,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     func stopProximitySensor() -> Void {
         guard self.isProximityRegistered else { return }
 
-        print("stopProximitySensor()")
+        NSLog("stopProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = false
         self.stopObserve(self.proximityObserver, name: UIDeviceProximityStateDidChangeNotification, object: nil) // --- remove all no matter what object
         self.isProximityRegistered = false
@@ -197,11 +197,11 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     // --- _ringbackUriType: never go here with  be empty string.
     func startRingback(_ringbackUriType: String) -> Void {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startRingback(): UriType=\(_ringbackUriType)")
+        NSLog("startRingback(): UriType=\(_ringbackUriType)")
         do {
             if self.mRingback != nil {
                 if self.mRingback.playing {
-                    print("startRingback(): is already playing")
+                    NSLog("startRingback(): is already playing")
                     return
                 } else {
                     self.stopRingback()
@@ -211,7 +211,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             let ringbackUriType: String = (_ringbackUriType == "_DTMF_" ? "_DEFAULT_" : _ringbackUriType)
             let ringbackUri: NSURL? = getRingbackUri(ringbackUriType)
             if ringbackUri == nil {
-                print("startRingback(): no available ringback")
+                NSLog("startRingback(): no available ringback")
                 return
             }
             //self.storeOriginalAudioSetup()
@@ -225,13 +225,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             _ = try? self.audioSession.setMode(self.defaultAudioMode)
             self.mRingback.play()
         } catch {
-            print("startRingtone() failed")
+            NSLog("startRingtone() failed")
         }    
     }
 
     @objc func stopRingback() -> Void {
         if self.mRingback != nil {
-            print("stopRingback()")
+            NSLog("stopRingback()")
             self.mRingback.stop()
             self.mRingback = nil
             //self.restoreOriginalAudioSetup()
@@ -242,11 +242,11 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     // --- _busytoneUriType: never go here with  be empty string.
     func startBusytone(_busytoneUriType: String) -> Bool {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startBusytone(): UriType=\(_busytoneUriType)")
+        NSLog("startBusytone(): UriType=\(_busytoneUriType)")
         do {
             if self.mBusytone != nil {
                 if self.mBusytone.playing {
-                    print("startBusytone(): is already playing")
+                    NSLog("startBusytone(): is already playing")
                     return false
                 } else {
                     self.stopBusytone()
@@ -257,7 +257,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             let busytoneUriType: String = (_busytoneUriType == "_DTMF_" ? "_DEFAULT_" : _busytoneUriType)
             let busytoneUri: NSURL? = getBusytoneUri(busytoneUriType)
             if busytoneUri == nil {
-                print("startBusytone(): no available media")
+                NSLog("startBusytone(): no available media")
                 return false
             }
             //self.storeOriginalAudioSetup()
@@ -271,7 +271,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             _ = try? self.audioSession.setMode(self.defaultAudioMode)
             self.mBusytone.play()
         } catch {
-            print("startRingtone() failed")
+            NSLog("startRingtone() failed")
             return false
         }    
         return true
@@ -279,7 +279,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     
     func stopBusytone() -> Void {
         if self.mBusytone != nil {
-            print("stopBusytone()")
+            NSLog("stopBusytone()")
             self.mBusytone.stop()
             self.mBusytone = nil
             //self.restoreOriginalAudioSetup()
@@ -290,11 +290,11 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     // --- ringtoneUriType May be empty
     @objc func startRingtone(ringtoneUriType: String) -> Void {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
-        print("startRingtone(): UriType=\(ringtoneUriType)")
+        NSLog("startRingtone(): UriType=\(ringtoneUriType)")
         do {
             if self.mRingtone != nil {
                 if self.mRingtone.playing {
-                    print("startRingtone(): is already playing.")
+                    NSLog("startRingtone(): is already playing.")
                     return
                 } else {
                     self.stopRingtone()
@@ -302,7 +302,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             }
             let ringtoneUri: NSURL? = getRingtoneUri(ringtoneUriType)
             if ringtoneUri == nil {
-                print("startRingtone(): no available media")
+                NSLog("startRingtone(): no available media")
                 return
             }
             
@@ -318,13 +318,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             _ = try? self.audioSession.setMode(AVAudioSessionModeDefault)
             self.mRingtone.play()
         } catch {
-            print("startRingtone() failed")
+            NSLog("startRingtone() failed")
         }    
     }
 
     @objc func stopRingtone() -> Void {
         if self.mRingtone != nil {
-            print("stopRingtone()")
+            NSLog("stopRingtone()")
             self.mRingtone.stop()
             self.mRingtone = nil
             self.restoreOriginalAudioSetup()
@@ -367,7 +367,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             if uriBundle == nil {
                 uriBundle = NSBundle.mainBundle().URLForResource(fileBundle, withExtension: fileBundleExt)
                 if uriBundle == nil {
-                    print("getAudioUri() \(fileBundle).\(fileBundleExt) not found in bundle.")
+                    NSLog("getAudioUri() \(fileBundle).\(fileBundleExt) not found in bundle.")
                     type = fileSysWithExt
                 } else {
                     return uriBundle
@@ -396,7 +396,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
                 }
             }
         }
-        print("can not get url for \(target)")
+        NSLog("can not get url for \(target)")
         return nil
     }
 
@@ -404,17 +404,17 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         // --- this only called when all loop played. it means, an infinite (numberOfLoops = -1) loop will never into here.
         //if player.url!.isFileReferenceURL() {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
-        print("finished playing: \(filename)")
+        NSLog("finished playing: \(filename)")
         if filename == self.bundleBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent
             || filename == self.defaultBusytoneUri?.URLByDeletingPathExtension?.lastPathComponent {
             //self.stopBusytone()
-            print("busytone finished, invoke stop()")
+            NSLog("busytone finished, invoke stop()")
             self.stop("")
         }
     }
 
     func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer!, error: NSError!) {
-        print("\(error.localizedDescription)")
+        NSLog("\(error.localizedDescription)")
     }
 
     // --- Deprecated in iOS 8.0.
