@@ -403,7 +403,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         return nil
     }
 
-    func audioPlayerDidFinishPlaying(player: AVAudioPlayer!, successfully flag: Bool) {
+    func audioPlayerDidFinishPlaying(player: AVAudioPlayer!, successfully flag: Bool) -> Void {
         // --- this only called when all loop played. it means, an infinite (numberOfLoops = -1) loop will never into here.
         //if player.url!.isFileReferenceURL() {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
@@ -416,21 +416,99 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer!, error: NSError!) {
+    func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer!, error: NSError!) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         NSLog("RNInCallManager.audioPlayerDecodeErrorDidOccur(): player=\(filename), error=\(error.localizedDescription)")
     }
 
     // --- Deprecated in iOS 8.0.
-    func audioPlayerBeginInterruption(player: AVAudioPlayer!) {
+    func audioPlayerBeginInterruption(player: AVAudioPlayer!) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         NSLog("RNInCallManager.audioPlayerBeginInterruption(): player=\(filename)")
     }
 
     // --- Deprecated in iOS 8.0.
-    func audioPlayerEndInterruption(player: AVAudioPlayer!) {
+    func audioPlayerEndInterruption(player: AVAudioPlayer!) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         NSLog("RNInCallManager.audioPlayerEndInterruption(): player=\(filename)")
     }
 
+    func debugAudioSession() -> Void {
+        let currentRoute: Dictionary <String,String> = ["input": self.audioSession.currentRoute.inputs[0].UID, "output": self.audioSession.currentRoute.outputs[0].UID]
+        var categoryOptions = ""
+        switch self.audioSession.categoryOptions {
+            case AVAudioSessionCategoryOptions.MixWithOthers:
+                categoryOptions = "MixWithOthers"
+            case AVAudioSessionCategoryOptions.DuckOthers:
+                categoryOptions = "DuckOthers"
+            case AVAudioSessionCategoryOptions.AllowBluetooth:
+                categoryOptions = "AllowBluetooth"
+            case AVAudioSessionCategoryOptions.DefaultToSpeaker:
+                categoryOptions = "DefaultToSpeaker"
+            default:
+                categoryOptions = "unknow"
+        }
+        if #available(iOS 9, *) {
+            if categoryOptions == "unknow" && self.audioSession.categoryOptions == AVAudioSessionCategoryOptions.InterruptSpokenAudioAndMixWithOthers {
+                categoryOptions = "InterruptSpokenAudioAndMixWithOthers"
+            }
+        }
+        var audioSessionProperties: Dictionary <String,Any> = [
+            "category": self.audioSession.category,
+            "categoryOptions": categoryOptions,
+            "mode": self.audioSession.mode,
+            //"inputAvailable": self.audioSession.inputAvailable,
+            "otherAudioPlaying": self.audioSession.otherAudioPlaying,
+            //"availableInputs": self.audioSession.availableInputs,
+            //"preferredInput": self.audioSession.preferredInput,
+            //"inputDataSources": self.audioSession.inputDataSources,
+            //"inputDataSource": self.audioSession.inputDataSource,
+            //"outputDataSources": self.audioSession.outputDataSources,
+            //"outputDataSource": self.audioSession.outputDataSource,
+            "currentRoute": currentRoute,
+            "outputVolume": self.audioSession.outputVolume,
+            "inputGain": self.audioSession.inputGain,
+            "inputGainSettable": self.audioSession.inputGainSettable,
+            "inputLatency": self.audioSession.inputLatency,
+            "outputLatency": self.audioSession.outputLatency,
+            "sampleRate": self.audioSession.sampleRate,
+            "preferredSampleRate": self.audioSession.preferredSampleRate,
+            "IOBufferDuration": self.audioSession.IOBufferDuration,
+            "preferredIOBufferDuration": self.audioSession.preferredIOBufferDuration,
+            "inputNumberOfChannels": self.audioSession.inputNumberOfChannels,
+            "maximumInputNumberOfChannels": self.audioSession.maximumInputNumberOfChannels,
+            "preferredInputNumberOfChannels": self.audioSession.preferredInputNumberOfChannels,
+            "outputNumberOfChannels": self.audioSession.outputNumberOfChannels,
+            "maximumOutputNumberOfChannels": self.audioSession.maximumOutputNumberOfChannels,
+            "preferredOutputNumberOfChannels": self.audioSession.preferredOutputNumberOfChannels
+        ]
+        if #available(iOS 8, *) {
+            var recordPermission = ""
+            switch self.audioSession.recordPermission() {
+                case AVAudioSessionRecordPermission.Undetermined:
+                    recordPermission = "Undetermined"
+                case AVAudioSessionRecordPermission.Denied:
+                    recordPermission = "Denied"
+                case AVAudioSessionRecordPermission.Granted:
+                    recordPermission = "Granted"
+                default:
+                    recordPermission = "unknow"
+            }
+            audioSessionProperties["recordPermission"] = recordPermission
+            //audioSessionProperties["secondaryAudioShouldBeSilencedHint"] = self.audioSession.secondaryAudioShouldBeSilencedHint
+        } else {
+            audioSessionProperties["recordPermission"] = "unknow"
+            //audioSessionProperties["secondaryAudioShouldBeSilencedHint"] = "unknow"
+        }
+        if #available(iOS 9, *) {
+            //audioSessionProperties["availableCategories"] = self.audioSession.availableCategories
+            //audioSessionProperties["availableModes"] = self.audioSession.availableModes
+        }
+        NSLog("RNInCallManager.debugAudioSession(): ==========BEGIN==========")
+        // iterate over all keys
+        for (key, value) in audioSessionProperties {
+            NSLog("\(key) = \(value)")
+        }
+        NSLog("RNInCallManager.debugAudioSession(): ==========END==========")
+    }
 }
