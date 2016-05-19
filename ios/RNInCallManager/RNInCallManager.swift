@@ -110,7 +110,34 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     func updateAudioRoute() -> Void {
-        NSLog("RNInCallManager.updateAudioRoute(): ios doesn't support updateAudioRoute()")
+        NSLog("RNInCallManager.updateAudioRoute(): flag=\(self.forceSpeakerOn)")
+        var overrideAudioPort: AVAudioSessionPortOverride
+        var audioMode: String
+        if self.forceSpeakerOn == 1 { // force on
+            overrideAudioPort = .Speaker
+            audioMode = AVAudioSessionModeVideoChat
+        } else if self.forceSpeakerOn == -1 { //force off
+            overrideAudioPort = .None
+            audioMode = AVAudioSessionModeVoiceChat
+        } else { // use default behavior
+            overrideAudioPort = .None
+            audioMode = self.defaultAudioMode
+        }
+        /*
+        // --- not necessary to override since we can use ModeVideoChet.
+        // --- this would be useful only when wired headset is plugged and we still want to set speaker on
+        // TODO: find a way to detect wired headset is plugged or not
+        do {
+            try self.audioSession.overrideOutputAudioPort(overrideAudioPort)
+        } catch let err {
+            NSLog("RNInCallManager.setForceSpeakerphoneOn(): audioSession.overrideOutputAudioPort(\(overrideAudioPort)) failed: \(err)")
+        }
+        */
+        do {
+            try self.audioSession.setMode(audioMode)
+        } catch let err {
+            NSLog("RNInCallManager.setForceSpeakerphoneOn(): audioSession.setMode(\(audioMode)) failed: \(err)")
+        }
     }
 
     @objc func setKeepScreenOn(enable: Bool) -> Void {
@@ -125,16 +152,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     @objc func setForceSpeakerphoneOn(flag: Int) -> Void {
         self.forceSpeakerOn = flag
         NSLog("RNInCallManager.setForceSpeakerphoneOn(): flag=\(flag)")
-        if self.forceSpeakerOn == 1 { // force on
-            _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.Speaker)
-            _ = try? self.audioSession.setMode(AVAudioSessionModeVideoChat)
-        } else if self.forceSpeakerOn == -1 { //force off
-            _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.None)
-            _ = try? self.audioSession.setMode(AVAudioSessionModeVoiceChat)
-        } else { // use default behavior
-            _ = try? self.audioSession.overrideOutputAudioPort(AVAudioSessionPortOverride.None)
-            _ = try? self.audioSession.setMode(self.defaultAudioMode)
-        }
+        self.updateAudioRoute()
     }
 
     @objc func setMicrophoneMute(enable: Bool) -> Void {
@@ -237,8 +255,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.stopRingback()")
             self.mRingback.stop()
             self.mRingback = nil
-            //self.restoreOriginalAudioSetup()
-            //_ = try? self.audioSession.setActive(false, withOptions: .NotifyOthersOnDeactivation)
+            // --- need to reset route based on config because WebRTC seems will switch audio mode automatically when call established.
+            self.updateAudioRoute()
         }
     }
 
