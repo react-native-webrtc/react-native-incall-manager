@@ -78,6 +78,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
         self.setKeepScreenOn(true)
         self.audioSessionInitialized = true
+        //self.debugAudioSession()
     }
 
     @objc func stop(busytoneUriType: String) -> Void {
@@ -111,16 +112,17 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     func updateAudioRoute() -> Void {
         NSLog("RNInCallManager.updateAudioRoute(): forceSpeakerOn flag=\(self.forceSpeakerOn)")
-        var overrideAudioPort: AVAudioSessionPortOverride
+        //self.debugAudioSession()
+        //var overrideAudioPort: AVAudioSessionPortOverride
         var audioMode: String
         if self.forceSpeakerOn == 1 { // force on
-            overrideAudioPort = .Speaker
+            //overrideAudioPort = .Speaker
             audioMode = AVAudioSessionModeVideoChat
         } else if self.forceSpeakerOn == -1 { //force off
-            overrideAudioPort = .None
+            //overrideAudioPort = .None
             audioMode = AVAudioSessionModeVoiceChat
         } else { // use default behavior
-            overrideAudioPort = .None
+            //overrideAudioPort = .None
             audioMode = self.defaultAudioMode
         }
         /*
@@ -130,10 +132,12 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         do {
             try self.audioSession.overrideOutputAudioPort(overrideAudioPort)
         } catch let err {
-            NSLog("RNInCallManager.setForceSpeakerphoneOn(): audioSession.overrideOutputAudioPort(\(overrideAudioPort)) failed: \(err)")
+            NSLog("RNInCallManager.updateAudioRoute(): audioSession.overrideOutputAudioPort(\(overrideAudioPort)) failed: \(err)")
         }
         */
         self.audioSessionSetMode(audioMode, #function)
+        //NSLog("RNInCallManager.updateAudioRoute() END")
+        //self.debugAudioSession()
     }
 
     func audioSessionSetCategory(audioCategory: String, _ options: AVAudioSessionCategoryOptions?, _ callerMemo: String) -> Void {
