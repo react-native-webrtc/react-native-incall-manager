@@ -450,7 +450,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         return nil
     }
 
-    func audioPlayerDidFinishPlaying(player: AVAudioPlayer!, successfully flag: Bool) -> Void {
+    func audioPlayerDidFinishPlaying(player: AVAudioPlayer, successfully flag: Bool) -> Void {
         // --- this only called when all loop played. it means, an infinite (numberOfLoops = -1) loop will never into here.
         //if player.url!.isFileReferenceURL() {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
@@ -463,19 +463,19 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer!, error: NSError!) -> Void {
+    func audioPlayerDecodeErrorDidOccur(player: AVAudioPlayer, error: NSError?) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
-        NSLog("RNInCallManager.audioPlayerDecodeErrorDidOccur(): player=\(filename), error=\(error.localizedDescription)")
+        NSLog("RNInCallManager.audioPlayerDecodeErrorDidOccur(): player=\(filename), error=\(error?.localizedDescription)")
     }
 
     // --- Deprecated in iOS 8.0.
-    func audioPlayerBeginInterruption(player: AVAudioPlayer!) -> Void {
+    func audioPlayerBeginInterruption(player: AVAudioPlayer) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         NSLog("RNInCallManager.audioPlayerBeginInterruption(): player=\(filename)")
     }
 
     // --- Deprecated in iOS 8.0.
-    func audioPlayerEndInterruption(player: AVAudioPlayer!) -> Void {
+    func audioPlayerEndInterruption(player: AVAudioPlayer) -> Void {
         let filename = player.url?.URLByDeletingPathExtension?.lastPathComponent
         NSLog("RNInCallManager.audioPlayerEndInterruption(): player=\(filename)")
     }
