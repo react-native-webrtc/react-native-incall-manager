@@ -64,10 +64,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         NSLog("RNInCallManager.start() start InCallManager. type=\(media), mode=\(self.defaultAudioMode)")
         self.storeOriginalAudioSetup()
         self.forceSpeakerOn = 0;
-        //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
-        _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
-        _ = try? self.audioSession.setMode(self.defaultAudioMode)
-        _ = try? self.audioSession.setActive(true)
+        //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+        self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
+        self.audioSessionSetMode(self.defaultAudioMode, #function)
+        self.audioSessionSetActive(true, nil, #function)
         if !(ringbackUriType ?? "").isEmpty {
             NSLog("RNInCallManager.start() play ringback first. type=\(ringbackUriType)")
             self.startRingback(ringbackUriType)
@@ -93,7 +93,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.restoreOriginalAudioSetup()
             self.stopBusytone()
             self.stopProximitySensor()
-            _ = try? self.audioSession.setActive(false, withOptions: .NotifyOthersOnDeactivation)
+            self.audioSessionSetActive(false, .NotifyOthersOnDeactivation, #function)
             self.setKeepScreenOn(false)
             NSNotificationCenter.defaultCenter().removeObserver(self)
             self.forceSpeakerOn = 0;
@@ -110,7 +110,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     func updateAudioRoute() -> Void {
-        NSLog("RNInCallManager.updateAudioRoute(): flag=\(self.forceSpeakerOn)")
+        NSLog("RNInCallManager.updateAudioRoute(): forceSpeakerOn flag=\(self.forceSpeakerOn)")
         var overrideAudioPort: AVAudioSessionPortOverride
         var audioMode: String
         if self.forceSpeakerOn == 1 { // force on
@@ -133,10 +133,41 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.setForceSpeakerphoneOn(): audioSession.overrideOutputAudioPort(\(overrideAudioPort)) failed: \(err)")
         }
         */
+        self.audioSessionSetMode(audioMode, #function)
+    }
+
+    func audioSessionSetCategory(audioCategory: String, _ options: AVAudioSessionCategoryOptions?, _ callerMemo: String) -> Void {
+        do {
+            if let withOptions = options {
+                try self.audioSession.setCategory(audioCategory, withOptions: withOptions)
+            } else {
+                try self.audioSession.setCategory(audioCategory)
+            }
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setCategory(\(audioCategory), withOptions: \(options)) success")
+        } catch let err {
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setCategory(\(audioCategory), withOptions: \(options)) failed: \(err)")
+        }
+    }
+
+    func audioSessionSetMode(audioMode: String, _ callerMemo: String) -> Void {
         do {
             try self.audioSession.setMode(audioMode)
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setMode(\(audioMode)) success")
         } catch let err {
-            NSLog("RNInCallManager.setForceSpeakerphoneOn(): audioSession.setMode(\(audioMode)) failed: \(err)")
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setMode(\(audioMode)) failed: \(err)")
+        }
+    }
+
+    func audioSessionSetActive(audioActive: Bool, _ options:AVAudioSessionSetActiveOptions?, _ callerMemo: String) -> Void {
+        do {
+            if let withOptions = options {
+                try self.audioSession.setActive(audioActive, withOptions: withOptions)
+            } else {
+                try self.audioSession.setActive(audioActive)
+            }
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setActive(\(audioActive), withOptions: \(options)) success")
+        } catch let err {
+            NSLog("RNInCallManager.\(callerMemo): audioSession.setActive(\(audioActive), withOptions: \(options)) failed: \(err)")
         }
     }
 
@@ -167,8 +198,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     func restoreOriginalAudioSetup() -> Void {
         NSLog("RNInCallManager.restoreOriginalAudioSetup(): origAudioCategory=\(self.audioSession.category), origAudioMode=\(self.audioSession.mode)")
-        _ = try? self.audioSession.setCategory(self.origAudioCategory)
-        _ = try? self.audioSession.setMode(self.origAudioMode)
+        self.audioSessionSetCategory(self.origAudioCategory, nil, #function)
+        self.audioSessionSetMode(self.origAudioMode, #function)
     }
 
     func checkProximitySupport() -> Void {
@@ -240,13 +271,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingback.delegate = self
             self.mRingback.numberOfLoops = -1 // you need to stop it explicitly
             self.mRingback.prepareToPlay()
-            //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
-            _ = try? self.audioSession.setMode(self.defaultAudioMode)
+            //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+            self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
+            self.audioSessionSetMode(self.defaultAudioMode, #function)
             self.mRingback.play()
-        } catch {
-            NSLog("RNInCallManager.startRingback(): caught error=\(error)")
+        } catch let err {
+            NSLog("RNInCallManager.startRingback(): caught error=\(err)")
         }    
     }
 
@@ -286,13 +317,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mBusytone.delegate = self
             self.mBusytone.numberOfLoops = 0 // it's part of start(), will stop at stop() 
             self.mBusytone.prepareToPlay()
-            //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setCategory(self.defaultAudioCategory)
-            _ = try? self.audioSession.setMode(self.defaultAudioMode)
+            //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+            self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
+            self.audioSessionSetMode(self.defaultAudioMode, #function)
             self.mBusytone.play()
-        } catch {
-            NSLog("RNInCallManager.startBusytone(): caught error=\(error)")
+        } catch let err {
+            NSLog("RNInCallManager.startBusytone(): caught error=\(err)")
             return false
         }    
         return true
@@ -303,8 +334,6 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.stopBusytone()")
             self.mBusytone.stop()
             self.mBusytone = nil
-            //self.restoreOriginalAudioSetup()
-            //_ = try? self.audioSession.setActive(false, withOptions: .NotifyOthersOnDeactivation)
         }
     }
 
@@ -333,13 +362,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingtone.delegate = self
             self.mRingtone.numberOfLoops = -1 // you need to stop it explicitly
             self.mRingtone.prepareToPlay()
-            //self.audioSession.setCategory(defaultAudioCategory, options: [.DefaultToSpeaker, .AllowBluetooth])
 
-            _ = try? self.audioSession.setCategory(AVAudioSessionCategorySoloAmbient)
-            _ = try? self.audioSession.setMode(AVAudioSessionModeDefault)
+            //self.audioSessionSetCategory(AVAudioSessionCategorySoloAmbient, [.DefaultToSpeaker, .AllowBluetooth], #function)
+            self.audioSessionSetCategory(AVAudioSessionCategorySoloAmbient, nil, #function)
+            self.audioSessionSetMode(AVAudioSessionModeDefault, #function)
             self.mRingtone.play()
-        } catch {
-            NSLog("RNInCallManager.startRingtone(): caught error=\(error)")
+        } catch let err {
+            NSLog("RNInCallManager.startRingtone(): caught error=\(err)")
         }    
     }
 
@@ -349,7 +378,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingtone.stop()
             self.mRingtone = nil
             self.restoreOriginalAudioSetup()
-            _ = try? self.audioSession.setActive(false, withOptions: .NotifyOthersOnDeactivation)
+            self.audioSessionSetActive(false, .NotifyOthersOnDeactivation, #function)
         }
     }
 
