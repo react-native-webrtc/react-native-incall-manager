@@ -46,6 +46,14 @@ var InCallManager = {
     stopRingback: function() {
         _InCallManager.stopRingback();
     },
+    checkRecordPermission: async function() {
+        let result = await _InCallManager.checkRecordPermission();
+        return result;
+    },
+    requestRecordPermission: async function() {
+        let result = await _InCallManager.requestRecordPermission();
+        return result;
+    },
 };
 
 module.exports = InCallManager;

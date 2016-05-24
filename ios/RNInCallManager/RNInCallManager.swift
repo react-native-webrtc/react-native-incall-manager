@@ -37,9 +37,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var audioSessionInitialized: Bool = false
     let automatic: Bool = true
     var forceSpeakerOn: Int = 0 //UInt8?
+    var recordPermission: String!
   
     //@objc func initWithBridge(_bridge: RCTBridge) {
-        //self.bridge = _bridge
+    //self.bridge = _bridge
     override init() {
         super.init()
         self.currentDevice = UIDevice.currentDevice()
@@ -54,6 +55,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     @objc func start(media: String, auto: Bool, ringbackUriType: String) -> Void {
         guard !self.audioSessionInitialized else { return }
+        guard self.recordPermission == "granted" else {
+            NSLog("RNInCallManager.start(): recordPermission should be granted. state: \(self.recordPermission)")
+            return
+        }
 
         // --- auto is always true on ios
         if media == "video" {
@@ -504,12 +509,14 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
                 categoryOptions = "InterruptSpokenAudioAndMixWithOthers"
             }
         }
+        self._checkRecordPermission()
         var audioSessionProperties: Dictionary <String,Any> = [
             "category": self.audioSession.category,
             "categoryOptions": categoryOptions,
             "mode": self.audioSession.mode,
             //"inputAvailable": self.audioSession.inputAvailable,
             "otherAudioPlaying": self.audioSession.otherAudioPlaying,
+            "recordPermission" : self.recordPermission,
             //"availableInputs": self.audioSession.availableInputs,
             //"preferredInput": self.audioSession.preferredInput,
             //"inputDataSources": self.audioSession.inputDataSources,
@@ -533,33 +540,80 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             "maximumOutputNumberOfChannels": self.audioSession.maximumOutputNumberOfChannels,
             "preferredOutputNumberOfChannels": self.audioSession.preferredOutputNumberOfChannels
         ]
+        /*
+        // --- Too noisy
         if #available(iOS 8, *) {
-            var recordPermission = ""
-            switch self.audioSession.recordPermission() {
-                case AVAudioSessionRecordPermission.Undetermined:
-                    recordPermission = "Undetermined"
-                case AVAudioSessionRecordPermission.Denied:
-                    recordPermission = "Denied"
-                case AVAudioSessionRecordPermission.Granted:
-                    recordPermission = "Granted"
-                default:
-                    recordPermission = "unknow"
-            }
-            audioSessionProperties["recordPermission"] = recordPermission
             //audioSessionProperties["secondaryAudioShouldBeSilencedHint"] = self.audioSession.secondaryAudioShouldBeSilencedHint
         } else {
-            audioSessionProperties["recordPermission"] = "unknow"
             //audioSessionProperties["secondaryAudioShouldBeSilencedHint"] = "unknow"
         }
         if #available(iOS 9, *) {
             //audioSessionProperties["availableCategories"] = self.audioSession.availableCategories
             //audioSessionProperties["availableModes"] = self.audioSession.availableModes
         }
+        */
         NSLog("RNInCallManager.debugAudioSession(): ==========BEGIN==========")
         // iterate over all keys
         for (key, value) in audioSessionProperties {
             NSLog("\(key) = \(value)")
         }
         NSLog("RNInCallManager.debugAudioSession(): ==========END==========")
+    }
+
+    @objc func checkRecordPermission(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        self._checkRecordPermission()
+        if self.recordPermission != nil {
+            resolve(self.recordPermission)
+        } else {
+            reject("error_code", "error message", NSError(domain:"checkRecordPermission", code: 0, userInfo: nil))
+        }
+    }
+
+    func _checkRecordPermission() {
+        var recordPermission: String = "unsupported"
+        var usingApi: String = ""
+        if #available(iOS 8, *) {
+            usingApi = "iOS8+"
+            switch self.audioSession.recordPermission() {
+                case AVAudioSessionRecordPermission.Granted:
+                    recordPermission = "granted"
+                case AVAudioSessionRecordPermission.Denied:
+                    recordPermission = "denied"
+                case AVAudioSessionRecordPermission.Undetermined:
+                    recordPermission = "undetermined"
+                default:
+                    recordPermission = "unknow"
+            }
+        } else {
+            // --- target api at least iOS7+
+            usingApi = "iOS7"
+            switch AVCaptureDevice.authorizationStatusForMediaType(AVMediaTypeAudio) {
+                case AVAuthorizationStatus.Authorized:
+                    recordPermission = "granted"
+                case AVAuthorizationStatus.Denied:
+                    recordPermission = "denied"
+                case AVAuthorizationStatus.NotDetermined:
+                    recordPermission = "undetermined"
+                case AVAuthorizationStatus.Restricted:
+                    recordPermission = "restricted"
+                default:
+                    recordPermission = "unknow"
+            }
+        }
+        self.recordPermission = recordPermission
+        NSLog("RNInCallManager._checkRecordPermission(): using \(usingApi) api. recordPermission=\(self.recordPermission)")
+    }
+
+    @objc func requestRecordPermission(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        NSLog("RNInCallManager.requestRecordPermission(): waiting for user confirmation...")
+        self.audioSession.requestRecordPermission({(granted: Bool) -> Void in
+            if granted {
+                self.recordPermission = "granted"
+            } else {
+                self.recordPermission = "denied"
+            }
+            NSLog("RNInCallManager.requestRecordPermission(): \(self.recordPermission)")
+            resolve(self.recordPermission)
+        })
     }
 }
