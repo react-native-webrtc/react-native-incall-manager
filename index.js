@@ -1,59 +1,80 @@
 'use strict';
 var _InCallManager = require('react-native').NativeModules.InCallManager;
 
-var InCallManager = {
-    start: function(setup) {
+class InCallManager {
+    constructor() {
+        this.recordPermission = 'unknow';
+        this.checkRecordPermission = this.checkRecordPermission.bind(this);
+        this.requestRecordPermission = this.requestRecordPermission.bind(this);
+        this.checkRecordPermission();
+    }
+
+    start(setup) {
         setup = (setup === undefined) ? {} : setup;
         let auto = (setup.auto === false) ? false : true;
         let media = (setup.media === 'video') ? 'video' : 'audio';
         let ringback = (!!setup.ringback) ? (typeof setup.ringback === 'string') ? setup.ringback : "" : "";
         _InCallManager.start(media, auto, ringback);
-    },
-    stop: function(setup) {
+    }
+
+    stop(setup) {
         setup = (setup === undefined) ? {} : setup;
         let busytone = (!!setup.busytone) ? (typeof setup.busytone === 'string') ? setup.busytone : "" : "";
         _InCallManager.stop(busytone);
-    },
-    turnScreenOff: function() {
+    }
+
+    turnScreenOff() {
         _InCallManager.turnScreenOff();
-    },
-    turnScreenOn: function() {
+    }
+
+    turnScreenOn() {
         _InCallManager.turnScreenOn();
-    },
-    setKeepScreenOn: function(enable) {
+    }
+
+    setKeepScreenOn(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setKeepScreenOn(enable);
-    },
-    setSpeakerphoneOn: function(enable) {
+    }
+
+    setSpeakerphoneOn(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setSpeakerphoneOn(enable);
-    },
-    setForceSpeakerphoneOn: function(_flag) {
+    }
+
+    setForceSpeakerphoneOn(_flag) {
         let flag = (typeof _flag === "boolean") ? (_flag) ? 1 : -1 : 0;
         _InCallManager.setForceSpeakerphoneOn(flag);
-    },
-    setMicrophoneMute: function(enable) {
+    }
+
+    setMicrophoneMute(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setMicrophoneMute(enable);
-    },
-    startRingtone: function(ringtone) {
+    }
+
+    startRingtone(ringtone) {
         ringtone = (typeof ringtone === 'string') ? ringtone : "_DEFAULT_";
         _InCallManager.startRingtone(ringtone);
-    },
-    stopRingtone: function() {
-        _InCallManager.stopRingtone();
-    },
-    stopRingback: function() {
-        _InCallManager.stopRingback();
-    },
-    checkRecordPermission: async function() {
-        let result = await _InCallManager.checkRecordPermission();
-        return result;
-    },
-    requestRecordPermission: async function() {
-        let result = await _InCallManager.requestRecordPermission();
-        return result;
-    },
-};
+    }
 
-module.exports = InCallManager;
+    stopRingtone() {
+        _InCallManager.stopRingtone();
+    }
+
+    stopRingback() {
+        _InCallManager.stopRingback();
+    }
+
+    async checkRecordPermission() {
+        let result = await _InCallManager.checkRecordPermission();
+        this.recordPermission = result;
+        return result;
+    }
+
+    async requestRecordPermission() {
+        let result = await _InCallManager.requestRecordPermission();
+        this.recordPermission = result;
+        return result;
+    }
+}
+
+export default new InCallManager();
