@@ -619,4 +619,18 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             resolve(self.recordPermission)
         })
     }
+
+    func debugApplicationState() -> Void {
+        var appState = "unknow"
+        switch UIApplication.sharedApplication().applicationState {
+            case UIApplicationState.Active:
+                appState = "Active"
+            case UIApplicationState.Inactive:
+                appState = "Inactive"
+            case UIApplicationState.Background:
+                appState = "Background"
+        }
+
+        NSLog("RNInCallManage ZXCPOIU: appState: \(appState)")
+    }
 }
