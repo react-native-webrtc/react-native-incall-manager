@@ -372,9 +372,12 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingtone.numberOfLoops = -1 // you need to stop it explicitly
             self.mRingtone.prepareToPlay()
 
-            //self.audioSessionSetCategory(AVAudioSessionCategorySoloAmbient, [.DefaultToSpeaker, .AllowBluetooth], #function)
-            self.audioSessionSetCategory(AVAudioSessionCategorySoloAmbient, nil, #function)
+            // --- we must use playback to support background playing.
+            // --- make sure you have enabled 'audio' tag ( or 'voip' tag ) at XCode -> Capabilities -> BackgroundMode
+            //self.audioSessionSetCategory(AVAudioSessionCategoryPlayback, [.DuckOthers], #function)
+            self.audioSessionSetCategory(AVAudioSessionCategoryPlayback, nil, #function)
             self.audioSessionSetMode(AVAudioSessionModeDefault, #function)
+            //self.audioSessionSetActive(true, nil, #function)
             self.mRingtone.play()
         } catch let err {
             NSLog("RNInCallManager.startRingtone(): caught error=\(err)")
