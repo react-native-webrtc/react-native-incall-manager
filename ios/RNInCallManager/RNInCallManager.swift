@@ -27,9 +27,24 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var bundleBusytoneUri: NSURL!
 
     var isProximitySupported: Bool = false
-    var isProximityRegistered: Bool = false
     var proximityIsNear: Bool = false
+
+    // --- tags to indicating which observer has added
+    var isProximityRegistered: Bool = false
+    var isAudioSessionInterruptionRegistered: Bool = false
+    var isAudioSessionRouteChangeRegistered: Bool = false
+    var isAudioSessionMediaServicesWereLostRegistered: Bool = false
+    var isAudioSessionMediaServicesWereResetRegistered: Bool = false
+    var isAudioSessionSilenceSecondaryAudioHintRegistered: Bool = false
+
+    // -- notification observers
     var proximityObserver: NSObjectProtocol?
+    var audioSessionInterruptionObserver: NSObjectProtocol?
+    var audioSessionRouteChangeObserver: NSObjectProtocol?
+    var audioSessionMediaServicesWereLostObserver: NSObjectProtocol?
+    var audioSessionMediaServicesWereResetObserver: NSObjectProtocol?
+    var audioSessionSilenceSecondaryAudioHintObserver: NSObjectProtocol?
+
     var defaultAudioMode: String = AVAudioSessionModeVoiceChat
     var defaultAudioCategory: String = AVAudioSessionCategoryPlayAndRecord
     var origAudioCategory: String!
@@ -38,6 +53,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     let automatic: Bool = true
     var forceSpeakerOn: Int = 0 //UInt8?
     var recordPermission: String!
+    var media: String = "audio"
   
     //@objc func initWithBridge(_bridge: RCTBridge) {
     //self.bridge = _bridge
@@ -59,16 +75,18 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.start(): recordPermission should be granted. state: \(self.recordPermission)")
             return
         }
+        self.media = media
 
         // --- auto is always true on ios
-        if media == "video" {
+        if self.media == "video" {
             self.defaultAudioMode = AVAudioSessionModeVideoChat
         } else {
             self.defaultAudioMode = AVAudioSessionModeVoiceChat
         }
-        NSLog("RNInCallManager.start() start InCallManager. type=\(media), mode=\(self.defaultAudioMode)")
+        NSLog("RNInCallManager.start() start InCallManager. media=\(self.media), type=\(self.media), mode=\(self.defaultAudioMode)")
         self.storeOriginalAudioSetup()
         self.forceSpeakerOn = 0;
+        self.startAudioSessionNotification()
         //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
         self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
         self.audioSessionSetMode(self.defaultAudioMode, #function)
@@ -78,7 +96,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.startRingback(ringbackUriType)
         }
 
-        if media == "audio" {
+        if self.media == "audio" {
             self.startProximitySensor()
         }
         self.setKeepScreenOn(true)
@@ -101,6 +119,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.stopProximitySensor()
             self.audioSessionSetActive(false, .NotifyOthersOnDeactivation, #function)
             self.setKeepScreenOn(false)
+            self.stopAudioSessionNotification()
             NSNotificationCenter.defaultCenter().removeObserver(self)
             self.forceSpeakerOn = 0;
             self.audioSessionInitialized = false
@@ -116,33 +135,76 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     func updateAudioRoute() -> Void {
-        NSLog("RNInCallManager.updateAudioRoute(): forceSpeakerOn flag=\(self.forceSpeakerOn)")
+        NSLog("RNInCallManager.updateAudioRoute(): [Enter] forceSpeakerOn flag=\(self.forceSpeakerOn) media=\(self.media) category=\(self.audioSession.category) mode=\(self.audioSession.mode)")
         //self.debugAudioSession()
-        //var overrideAudioPort: AVAudioSessionPortOverride
-        var audioMode: String
-        if self.forceSpeakerOn == 1 { // force on
-            //overrideAudioPort = .Speaker
-            audioMode = AVAudioSessionModeVideoChat
-        } else if self.forceSpeakerOn == -1 { //force off
-            //overrideAudioPort = .None
-            audioMode = AVAudioSessionModeVoiceChat
+        var overrideAudioPort: AVAudioSessionPortOverride
+        var overrideAudioPortString: String = ""
+        var audioMode: String = ""
+
+        // --- WebRTC native code will change audio mode automatically when established.
+        // --- It would have some race condition if we change audio mode with webrtc at the same time.
+        // --- So we should not change audio mode as possible as we can. Only when default video call which wants to force speaker off.
+        // --- audio: only override speaker on/off; video: should change category if needed and handle proximity sensor. ( because default proximity is off when video call )
+        if self.forceSpeakerOn == 1 {
+            // --- force ON, override speaker only, keep audio mode remain.
+            overrideAudioPort = .Speaker
+            overrideAudioPortString = ".Speaker"
+            if self.media == "video" {
+                audioMode = AVAudioSessionModeVideoChat
+                self.stopProximitySensor()
+            }
+        } else if self.forceSpeakerOn == -1 {
+            // --- force off
+            overrideAudioPort = .None
+            overrideAudioPortString = ".None"
+            if self.media == "video" {
+                audioMode = AVAudioSessionModeVoiceChat
+                self.startProximitySensor()
+            }
         } else { // use default behavior
-            //overrideAudioPort = .None
-            audioMode = self.defaultAudioMode
+            overrideAudioPort = .None
+            overrideAudioPortString = ".None"
+            if self.media == "video" {
+                audioMode = AVAudioSessionModeVideoChat
+                self.stopProximitySensor()
+            }
         }
-        /*
-        // --- not necessary to override since we can use ModeVideoChet.
-        // --- this would be useful only when wired headset is plugged and we still want to set speaker on
-        // TODO: find a way to detect wired headset is plugged or not
-        do {
-            try self.audioSession.overrideOutputAudioPort(overrideAudioPort)
-        } catch let err {
-            NSLog("RNInCallManager.updateAudioRoute(): audioSession.overrideOutputAudioPort(\(overrideAudioPort)) failed: \(err)")
+
+        let isCurrentRouteToSpeaker: Bool = self.checkAudioRoute([AVAudioSessionPortBuiltInSpeaker])
+        if (overrideAudioPort == .Speaker && !isCurrentRouteToSpeaker) || (overrideAudioPort == .None && isCurrentRouteToSpeaker) {
+            do {
+                try self.audioSession.overrideOutputAudioPort(overrideAudioPort)
+                NSLog("RNInCallManager.updateAudioRoute(): audioSession.overrideOutputAudioPort(\(overrideAudioPortString)) success")
+            } catch let err {
+                NSLog("RNInCallManager.updateAudioRoute(): audioSession.overrideOutputAudioPort(\(overrideAudioPortString)) failed: \(err)")
+            }
+        } else {
+            NSLog("RNInCallManager.updateAudioRoute(): did NOT overrideOutputAudioPort()")
         }
-        */
-        self.audioSessionSetMode(audioMode, #function)
-        //NSLog("RNInCallManager.updateAudioRoute() END")
+
+        if !audioMode.isEmpty && self.audioSession.mode != audioMode {
+            self.audioSessionSetMode(audioMode, #function)
+            NSLog("RNInCallManager.updateAudioRoute() audio mode has changed to \(audioMode)")
+        } else {
+            NSLog("RNInCallManager.updateAudioRoute() did NOT change audio mode")
+        }
         //self.debugAudioSession()
+    }
+
+    func checkAudioRoute(targetPortTypeArray: [String]) -> Bool {
+        if let currentRoute: AVAudioSessionRouteDescription = self.audioSession.currentRoute {
+            for _portDescription in currentRoute.outputs {
+                let portDescription: AVAudioSessionPortDescription = _portDescription as AVAudioSessionPortDescription
+                if targetPortTypeArray.contains(portDescription.portType) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    func isHeadsetPluggedIn() -> Bool {
+        return self.checkAudioRoute([AVAudioSessionPortHeadphones, AVAudioSessionPortHeadsetMic])
     }
 
     func audioSessionSetCategory(audioCategory: String, _ options: AVAudioSessionCategoryOptions?, _ callerMemo: String) -> Void {
@@ -220,6 +282,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     func startProximitySensor() -> Void {
         guard !self.isProximityRegistered else { return }
+
         NSLog("RNInCallManager.startProximitySensor()")
         self.currentDevice.proximityMonitoringEnabled = true
 
@@ -243,6 +306,202 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.currentDevice.proximityMonitoringEnabled = false
         self.stopObserve(self.proximityObserver, name: UIDeviceProximityStateDidChangeNotification, object: nil) // --- remove all no matter what object
         self.isProximityRegistered = false
+    }
+
+    func startAudioSessionNotification() -> Void {
+        NSLog("RNInCallManager.startAudioSessionNotification() starting...")
+        self.startAudioSessionInterruptionNotification()
+        self.startAudioSessionRouteChangeNotification()
+        self.startAudioSessionMediaServicesWereLostNotification()
+        self.startAudioSessionMediaServicesWereResetNotification()
+        self.startAudioSessionSilenceSecondaryAudioHintNotification()
+    }
+
+    func stopAudioSessionNotification() -> Void {
+        NSLog("RNInCallManager.startAudioSessionNotification() stopping...")
+        self.stopAudioSessionInterruptionNotification()
+        self.stopAudioSessionRouteChangeNotification()
+        self.stopAudioSessionMediaServicesWereLostNotification()
+        self.stopAudioSessionMediaServicesWereResetNotification()
+        self.stopAudioSessionSilenceSecondaryAudioHintNotification()
+    }
+
+    func startAudioSessionInterruptionNotification() -> Void {
+        guard !self.isAudioSessionInterruptionRegistered else { return }
+        NSLog("RNInCallManager.startAudioSessionInterruptionNotification()")
+
+        self.stopObserve(self.audioSessionInterruptionObserver, name: AVAudioSessionInterruptionNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.audioSessionInterruptionObserver = self.startObserve(AVAudioSessionInterruptionNotification, object: nil, queue: nil) { notification in
+            guard notification.name == AVAudioSessionInterruptionNotification && notification.userInfo != nil else { return }
+
+            if let rawValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey]?.unsignedIntegerValue {
+                //if let type = AVAudioSessionInterruptionType.fromRaw(rawValue) {
+                if let type = AVAudioSessionInterruptionType(rawValue: rawValue) {
+                    switch type {
+                        case .Began:
+                            NSLog("RNInCallManager.AudioSessionInterruptionNotification: Began")
+                        case .Ended:
+                            NSLog("RNInCallManager.AudioSessionInterruptionNotification: Ended")
+                        default:
+                            NSLog("RNInCallManager.AudioSessionInterruptionNotification: Unknow Value")
+                    }
+                    return
+                }
+            }
+            NSLog("RNInCallManager.AudioSessionInterruptionNotification: could not resolve notification")
+        }
+        self.isAudioSessionInterruptionRegistered = true
+    }
+
+    func stopAudioSessionInterruptionNotification() -> Void {
+        guard self.isAudioSessionInterruptionRegistered else { return }
+
+        NSLog("RNInCallManager.stopAudioSessionInterruptionNotification()")
+        self.stopObserve(self.audioSessionInterruptionObserver, name: AVAudioSessionInterruptionNotification, object: nil) // --- remove all no matter what object
+        self.isAudioSessionInterruptionRegistered = false
+    }
+
+    func startAudioSessionRouteChangeNotification() -> Void {
+        guard !self.isAudioSessionRouteChangeRegistered else { return }
+
+        NSLog("RNInCallManager.startAudioSessionRouteChangeNotification()")
+        self.stopObserve(self.audioSessionRouteChangeObserver, name: AVAudioSessionRouteChangeNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.audioSessionRouteChangeObserver = self.startObserve(AVAudioSessionRouteChangeNotification, object: nil, queue: nil) { notification in
+            guard notification.name == AVAudioSessionRouteChangeNotification && notification.userInfo != nil else { return }
+
+            if let rawValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey]?.unsignedIntegerValue {
+                if let type = AVAudioSessionRouteChangeReason(rawValue: rawValue) {
+                    switch type {
+                        case .Unknown:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: Unknown")
+                        case .NewDeviceAvailable:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: NewDeviceAvailable")
+                        case .OldDeviceUnavailable:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable")
+                        case .CategoryChange:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: CategoryChange. category=\(self.audioSession.category) mode=\(self.audioSession.mode)")
+                            self.updateAudioRoute()
+                        case .Override:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: Override")
+                        case .WakeFromSleep:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: WakeFromSleep")
+                        case .NoSuitableRouteForCategory:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: NoSuitableRouteForCategory")
+                        case .RouteConfigurationChange:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: RouteConfigurationChange. category=\(self.audioSession.category) mode=\(self.audioSession.mode)")
+                        default:
+                            NSLog("RNInCallManager.AudioRouteChange.Reason: Unknow Value")
+                    }
+                } else {
+                    NSLog("RNInCallManager.AudioRouteChange.Reason: cound not resolve notification")
+                }
+            } else {
+                NSLog("RNInCallManager.AudioRouteChange.Reason: cound not resolve notification")
+            }
+            if #available(iOS 8, *) {
+                if let rawValue = notification.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey]?.unsignedIntegerValue {
+                    if let type = AVAudioSessionSilenceSecondaryAudioHintType(rawValue: rawValue) {
+                        switch type {
+                            case .Begin:
+                                NSLog("RNInCallManager.AudioRouteChange.SilenceSecondaryAudioHint: Begin")
+                            case .End:
+                                NSLog("RNInCallManager.AudioRouteChange.SilenceSecondaryAudioHint: End")
+                            default:
+                                NSLog("RNInCallManager.AudioRouteChange.SilenceSecondaryAudioHint: Unknow Value")
+                        }
+                    } else {
+                        NSLog("RNInCallManager.AudioRouteChange.SilenceSecondaryAudioHint: cound not resolve notification")
+                    }
+                } else {
+                    NSLog("RNInCallManager.AudioRouteChange.SilenceSecondaryAudioHint: cound not resolve notification")
+                }
+            }
+        }
+        self.isAudioSessionRouteChangeRegistered = true
+    }
+
+    func stopAudioSessionRouteChangeNotification() -> Void {
+        guard self.isAudioSessionRouteChangeRegistered else { return }
+
+        NSLog("RNInCallManager.stopAudioSessionRouteChangeNotification()")
+        self.stopObserve(self.audioSessionRouteChangeObserver, name: AVAudioSessionRouteChangeNotification, object: nil) // --- remove all no matter what object
+        self.isAudioSessionRouteChangeRegistered = false
+    }
+
+    func startAudioSessionMediaServicesWereLostNotification() -> Void {
+        guard !self.isAudioSessionMediaServicesWereLostRegistered else { return }
+
+        NSLog("RNInCallManager.startAudioSessionMediaServicesWereLostNotification()")
+        self.stopObserve(self.audioSessionMediaServicesWereLostObserver, name: AVAudioSessionMediaServicesWereLostNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.audioSessionMediaServicesWereLostObserver = self.startObserve(AVAudioSessionMediaServicesWereLostNotification, object: nil, queue: nil) { notification in
+            // --- This notification has no userInfo dictionary.
+            NSLog("RNInCallManager.AudioSessionMediaServicesWereLostNotification: Media Services Were Lost")
+        }
+        self.isAudioSessionMediaServicesWereLostRegistered = true
+    }
+
+    func stopAudioSessionMediaServicesWereLostNotification() -> Void {
+        guard self.isAudioSessionMediaServicesWereLostRegistered else { return }
+
+        NSLog("RNInCallManager.stopAudioSessionMediaServicesWereLostNotification()")
+        self.stopObserve(self.audioSessionMediaServicesWereLostObserver, name: AVAudioSessionMediaServicesWereLostNotification, object: nil) // --- remove all no matter what object
+        self.isAudioSessionMediaServicesWereLostRegistered = false
+    }
+
+    func startAudioSessionMediaServicesWereResetNotification() -> Void {
+        guard !self.isAudioSessionMediaServicesWereResetRegistered else { return }
+
+        NSLog("RNInCallManager.startAudioSessionMediaServicesWereResetNotification()")
+        self.stopObserve(self.audioSessionMediaServicesWereResetObserver, name: AVAudioSessionMediaServicesWereResetNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.audioSessionMediaServicesWereResetObserver = self.startObserve(AVAudioSessionMediaServicesWereResetNotification, object: nil, queue: nil) { notification in
+            // --- This notification has no userInfo dictionary.
+            NSLog("RNInCallManager.AudioSessionMediaServicesWereResetNotification: Media Services Were Reset")
+        }
+        self.isAudioSessionMediaServicesWereResetRegistered = true
+    }
+
+    func stopAudioSessionMediaServicesWereResetNotification() -> Void {
+        guard self.isAudioSessionMediaServicesWereResetRegistered else { return }
+
+        NSLog("RNInCallManager.stopAudioSessionMediaServicesWereResetNotification()")
+        self.stopObserve(self.audioSessionMediaServicesWereResetObserver, name: AVAudioSessionMediaServicesWereResetNotification, object: nil) // --- remove all no matter what object
+        self.isAudioSessionMediaServicesWereResetRegistered = false
+    }
+
+    func startAudioSessionSilenceSecondaryAudioHintNotification() -> Void {
+        guard #available(iOS 8, *) else { return }
+        guard !self.isAudioSessionSilenceSecondaryAudioHintRegistered else { return }
+
+        NSLog("RNInCallManager.startAudioSessionSilenceSecondaryAudioHintNotification()")
+        self.stopObserve(self.audioSessionSilenceSecondaryAudioHintObserver, name: AVAudioSessionSilenceSecondaryAudioHintNotification, object: nil) // --- in case it didn't deallocate when ViewDidUnload
+        self.audioSessionSilenceSecondaryAudioHintObserver = self.startObserve(AVAudioSessionSilenceSecondaryAudioHintNotification, object: nil, queue: nil) { notification in
+            guard notification.name == AVAudioSessionSilenceSecondaryAudioHintNotification && notification.userInfo != nil else { return }
+
+            if let rawValue = notification.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey]?.unsignedIntegerValue {
+                if let type = AVAudioSessionSilenceSecondaryAudioHintType(rawValue: rawValue) {
+                    switch type {
+                        case .Begin:
+                            NSLog("RNInCallManager.AVAudioSessionSilenceSecondaryAudioHintNotification: Begin")
+                        case .End:
+                            NSLog("RNInCallManager.AVAudioSessionSilenceSecondaryAudioHintNotification: End")
+                        default:
+                            NSLog("RNInCallManager.AVAudioSessionSilenceSecondaryAudioHintNotification: Unknow Value")
+                    }
+                    return
+                }
+            }
+            NSLog("RNInCallManager.AVAudioSessionSilenceSecondaryAudioHintNotification: could not resolve notification")
+        }
+        self.isAudioSessionSilenceSecondaryAudioHintRegistered = true
+    }
+
+    func stopAudioSessionSilenceSecondaryAudioHintNotification() -> Void {
+        guard #available(iOS 8, *) else { return }
+        guard self.isAudioSessionSilenceSecondaryAudioHintRegistered else { return }
+
+        NSLog("RNInCallManager.stopAudioSessionSilenceSecondaryAudioHintNotification()")
+        self.stopObserve(self.audioSessionSilenceSecondaryAudioHintObserver, name: AVAudioSessionSilenceSecondaryAudioHintNotification, object: nil) // --- remove all no matter what object
+        self.isAudioSessionSilenceSecondaryAudioHintRegistered = false
     }
 
     func startObserve(name: String, object: AnyObject?, queue: NSOperationQueue?, block: (NSNotification) -> ()) -> NSObjectProtocol {
@@ -296,7 +555,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingback.stop()
             self.mRingback = nil
             // --- need to reset route based on config because WebRTC seems will switch audio mode automatically when call established.
-            self.updateAudioRoute()
+            //self.updateAudioRoute()
         }
     }
 
