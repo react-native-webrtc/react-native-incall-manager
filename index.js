@@ -1,6 +1,5 @@
 'use strict';
 var _InCallManager = require('react-native').NativeModules.InCallManager;
-import { Platform } from 'react-native';
 
 class InCallManager {
     constructor() {
@@ -66,27 +65,17 @@ class InCallManager {
     }
 
     async checkRecordPermission() {
-        if (Platform.OS === 'android') {
-            console.log('react-native-incall-manager: android does not support checkRecordPermission() yet.');
-            this.recordPermission = 'unknow';
-            return 'unknow';
-        } else {
-            let result = await _InCallManager.checkRecordPermission();
-            this.recordPermission = result;
-            return result;
-        }
+		// --- on android which api < 23, it will always be "granted"
+        let result = await _InCallManager.checkRecordPermission();
+        this.recordPermission = result;
+        return result;
     }
 
     async requestRecordPermission() {
-        if (Platform.OS === 'android') {
-            console.log('react-native-incall-manager: android does not support requestRecordPermission() yet.');
-            this.recordPermission = 'unknow';
-            return 'unknow';
-        } else {
-            let result = await _InCallManager.requestRecordPermission();
-            this.recordPermission = result;
-            return result;
-        }
+		// --- on android which api < 23, it will always be "granted"
+        let result = await _InCallManager.requestRecordPermission();
+        this.recordPermission = result;
+        return result;
     }
 }
 
