@@ -52,6 +52,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.stop("")
     }
 
+	
+	
+	
     @objc func start(media: String, auto: Bool, ringbackUriType: String) -> Void {
         guard !self.audioSessionInitialized else { return }
 
@@ -61,6 +64,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         } else {
             self.defaultAudioMode = AVAudioSessionModeVoiceChat
         }
+			
+				self.setupWiredHeadsetListener()
+			
         print("start() InCallManager")
         self.storeOriginalAudioSetup()
         self.forceSpeakerOn = 0;
@@ -144,6 +150,23 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.origAudioCategory = self.audioSession.category 
         self.origAudioMode = self.audioSession.mode
     }
+	
+		func audioRouteChangeListener(notification:NSNotification) {
+			let audioRouteChangeReason = notification.userInfo![AVAudioSessionRouteChangeReasonKey] as! UInt
+		
+			switch audioRouteChangeReason {
+				case AVAudioSessionRouteChangeReason.NewDeviceAvailable.rawValue:
+					self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true])
+				case AVAudioSessionRouteChangeReason.OldDeviceUnavailable.rawValue:
+					self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": false])
+				default:
+					break
+			}
+		}
+	
+		func setupWiredHeadsetListener() -> Void {
+			NSNotificationCenter.defaultCenter().addObserver( self, selector: #selector(self.audioRouteChangeListener(_:)), name: AVAudioSessionRouteChangeNotification, object: nil)
+		}
 
     func restoreOriginalAudioSetup() -> Void {
         print("restoreOriginalAudioSetup()")
