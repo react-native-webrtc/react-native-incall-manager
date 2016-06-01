@@ -26,7 +26,10 @@ use `rnpm link react-native-incall-manager` to link or manually if you like.
 
 **optional sound files on android**
 if you want to use bundled ringtone/ringback/busytone sound instead of system sound 
-
+  
+We use android support library v4 to check/request permissions.  
+You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.  
+  
 put files in `android/app/src/main/res/raw`
 and rename file correspond to sound type:
 
