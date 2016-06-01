@@ -170,6 +170,10 @@ if (InCallManager.recordPermission !== 'granted') {
 }
 ```
 
+We use android support library v4 to check/request permissions.  
+You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.
+
+
 **NOTE for android:**
 
 React Native does not officially support api 23 currently ( it is on api 22 now. see: [RN known issues](https://facebook.github.io/react-native/docs/known-issues.html#android-m-permissions)) and android supports request permission at runtime since api 23, so it will always return 'granted' immediately after calling `checkRecordPermission()` or `requestRecordPermission()`.
