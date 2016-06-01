@@ -27,6 +27,10 @@ public class InCallManagerPackage implements ReactPackage {
 
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
-        return Arrays.<ViewManager>asList();
+		return Collections.emptyList();
+    }
+
+    public static void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        InCallManagerModule.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 }
