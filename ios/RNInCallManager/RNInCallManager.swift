@@ -170,7 +170,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             }
         }
 
-        let isCurrentRouteToSpeaker: Bool = self.checkAudioRoute([AVAudioSessionPortBuiltInSpeaker])
+        let isCurrentRouteToSpeaker: Bool = self.checkAudioRoute([AVAudioSessionPortBuiltInSpeaker], "output")
         if (overrideAudioPort == .Speaker && !isCurrentRouteToSpeaker) || (overrideAudioPort == .None && isCurrentRouteToSpeaker) {
             do {
                 try self.audioSession.overrideOutputAudioPort(overrideAudioPort)
@@ -191,9 +191,10 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         //self.debugAudioSession()
     }
 
-    func checkAudioRoute(targetPortTypeArray: [String]) -> Bool {
+    func checkAudioRoute(targetPortTypeArray: [String], _ routeType: String) -> Bool {
         if let currentRoute: AVAudioSessionRouteDescription = self.audioSession.currentRoute {
-            for _portDescription in currentRoute.outputs {
+            let routes: [AVAudioSessionPortDescription] = (routeType == "input" ? currentRoute.inputs : currentRoute.outputs)
+            for _portDescription in routes {
                 let portDescription: AVAudioSessionPortDescription = _portDescription as AVAudioSessionPortDescription
                 if targetPortTypeArray.contains(portDescription.portType) {
                     return true
@@ -203,8 +204,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         return false
     }
 
-    func isHeadsetPluggedIn() -> Bool {
-        return self.checkAudioRoute([AVAudioSessionPortHeadphones, AVAudioSessionPortHeadsetMic])
+    func isWiredHeadsetPluggedIn() -> Bool {
+        // --- only check for a audio device plugged into headset port instead bluetooth/usb/hdmi
+        return self.checkAudioRoute([AVAudioSessionPortHeadphones], "output") || self.checkAudioRoute([AVAudioSessionPortHeadsetMic], "input")
     }
 
     func audioSessionSetCategory(audioCategory: String, _ options: AVAudioSessionCategoryOptions?, _ callerMemo: String) -> Void {
@@ -376,8 +378,16 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
                             NSLog("RNInCallManager.AudioRouteChange.Reason: Unknown")
                         case .NewDeviceAvailable:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: NewDeviceAvailable")
+                            if self.checkAudioRoute([AVAudioSessionPortHeadsetMic], "input") {
+                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": true, "deviceName": AVAudioSessionPortHeadsetMic])
+                            } else if self.checkAudioRoute([AVAudioSessionPortHeadphones], "output") {
+                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": false, "deviceName": AVAudioSessionPortHeadphones])
+                            }
                         case .OldDeviceUnavailable:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable")
+                            if !self.isWiredHeadsetPluggedIn() {
+                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": false, "hasMic": false, "deviceName": ""])
+                            }
                         case .CategoryChange:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: CategoryChange. category=\(self.audioSession.category) mode=\(self.audioSession.mode)")
                             self.updateAudioRoute()
