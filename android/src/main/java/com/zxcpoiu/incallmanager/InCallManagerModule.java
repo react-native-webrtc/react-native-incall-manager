@@ -295,7 +295,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             setMicrophoneMute(origIsMicrophoneMute);
             audioManager.setMode(origAudioMode);
             audioManager.setRingerMode(origRingerMode);
-            getCurrentActivity().setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
+            if (getCurrentActivity() != null) {
+                getCurrentActivity().setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
+            }
             isOrigAudioSetupStored = false;
         }
     }
