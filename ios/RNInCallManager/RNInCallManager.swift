@@ -295,7 +295,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             if state != self.proximityIsNear {
                 NSLog("RNInCallManager.UIDeviceProximityStateDidChangeNotification(): isNear: \(state)")
                 self.proximityIsNear = state
-                self.bridge.eventDispatcher.sendDeviceEventWithName("Proximity", body: ["isNear": state])
+                self.bridge.eventDispatcher().sendDeviceEventWithName("Proximity", body: ["isNear": state])
             }
         }
         
@@ -380,14 +380,14 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
                         case .NewDeviceAvailable:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: NewDeviceAvailable")
                             if self.checkAudioRoute([AVAudioSessionPortHeadsetMic], "input") {
-                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": true, "deviceName": AVAudioSessionPortHeadsetMic])
+                                self.bridge.eventDispatcher().sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": true, "deviceName": AVAudioSessionPortHeadsetMic])
                             } else if self.checkAudioRoute([AVAudioSessionPortHeadphones], "output") {
-                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": false, "deviceName": AVAudioSessionPortHeadphones])
+                                self.bridge.eventDispatcher().sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": true, "hasMic": false, "deviceName": AVAudioSessionPortHeadphones])
                             }
                         case .OldDeviceUnavailable:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable")
                             if !self.isWiredHeadsetPluggedIn() {
-                                self.bridge.eventDispatcher.sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": false, "hasMic": false, "deviceName": ""])
+                                self.bridge.eventDispatcher().sendDeviceEventWithName("WiredHeadset", body: ["isPlugged": false, "hasMic": false, "deviceName": ""])
                             }
                         case .CategoryChange:
                             NSLog("RNInCallManager.AudioRouteChange.Reason: CategoryChange. category=\(self.audioSession.category) mode=\(self.audioSession.mode)")
