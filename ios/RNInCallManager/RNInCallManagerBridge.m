@@ -22,5 +22,7 @@ RCT_EXTERN_METHOD(startRingtone:(NSString *)ringtoneUriType)
 RCT_EXTERN_METHOD(stopRingtone)
 RCT_EXTERN_METHOD(checkRecordPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(requestRecordPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(checkCameraPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(requestCameraPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 @end

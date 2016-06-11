@@ -4,9 +4,13 @@ var _InCallManager = require('react-native').NativeModules.InCallManager;
 class InCallManager {
     constructor() {
         this.recordPermission = 'unknow';
+        this.caeraPermission = 'unknow';
         this.checkRecordPermission = this.checkRecordPermission.bind(this);
         this.requestRecordPermission = this.requestRecordPermission.bind(this);
+        this.checkCameraPermission = this.checkCameraPermission.bind(this);
+        this.requestCameraPermission = this.requestCameraPermission.bind(this);
         this.checkRecordPermission();
+        this.checkCameraPermission();
     }
 
     start(setup) {
@@ -75,6 +79,20 @@ class InCallManager {
 		// --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.requestRecordPermission();
         this.recordPermission = result;
+        return result;
+    }
+
+    async checkCameraPermission() {
+		// --- on android which api < 23, it will always be "granted"
+        let result = await _InCallManager.checkCameraPermission();
+        this.cameraPermission = result;
+        return result;
+    }
+
+    async requestCameraPermission() {
+		// --- on android which api < 23, it will always be "granted"
+        let result = await _InCallManager.requestCameraPermission();
+        this.cameraPermission = result;
         return result;
     }
 }

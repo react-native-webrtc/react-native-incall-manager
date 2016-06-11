@@ -53,6 +53,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     let automatic: Bool = true
     var forceSpeakerOn: Int = 0 //UInt8?
     var recordPermission: String!
+    var cameraPermission: String!
     var media: String = "audio"
   
     //@objc func initWithBridge(_bridge: RCTBridge) {
@@ -859,18 +860,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         } else {
             // --- target api at least iOS7+
             usingApi = "iOS7"
-            switch AVCaptureDevice.authorizationStatusForMediaType(AVMediaTypeAudio) {
-                case AVAuthorizationStatus.Authorized:
-                    recordPermission = "granted"
-                case AVAuthorizationStatus.Denied:
-                    recordPermission = "denied"
-                case AVAuthorizationStatus.NotDetermined:
-                    recordPermission = "undetermined"
-                case AVAuthorizationStatus.Restricted:
-                    recordPermission = "restricted"
-                default:
-                    recordPermission = "unknow"
-            }
+            recordPermission = self._checkMediaPermission(AVMediaTypeAudio)
         }
         self.recordPermission = recordPermission
         NSLog("RNInCallManager._checkRecordPermission(): using \(usingApi) api. recordPermission=\(self.recordPermission)")
@@ -887,6 +877,48 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.requestRecordPermission(): \(self.recordPermission)")
             resolve(self.recordPermission)
         })
+    }
+
+    @objc func checkCameraPermission(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        self._checkCameraPermission()
+        if self.cameraPermission != nil {
+            resolve(self.cameraPermission)
+        } else {
+            reject("error_code", "error message", NSError(domain:"checkCameraPermission", code: 0, userInfo: nil))
+        }
+    }
+
+    func _checkCameraPermission() -> Void {
+        self.cameraPermission = self._checkMediaPermission(AVMediaTypeVideo)
+        NSLog("RNInCallManager._checkCameraPermission(): using iOS7 api. cameraPermission=\(self.cameraPermission)")
+    }
+
+    @objc func requestCameraPermission(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        NSLog("RNInCallManager.requestCameraPermission(): waiting for user confirmation...")
+        AVCaptureDevice.requestAccessForMediaType(AVMediaTypeVideo, completionHandler: {(granted: Bool) -> Void in
+            if granted {
+                self.cameraPermission = "granted"
+            } else {
+                self.cameraPermission = "denied"
+            }
+            NSLog("RNInCallManager.requestCameraPermission(): \(self.cameraPermission)")
+            resolve(self.cameraPermission)
+        })
+    }
+
+    func _checkMediaPermission(targetMediaType: String) -> String {
+        switch AVCaptureDevice.authorizationStatusForMediaType(targetMediaType) {
+            case AVAuthorizationStatus.Authorized:
+                return "granted"
+            case AVAuthorizationStatus.Denied:
+                return "denied"
+            case AVAuthorizationStatus.NotDetermined:
+                return "undetermined"
+            case AVAuthorizationStatus.Restricted:
+                return "restricted"
+            default:
+                return "unknow"
+        }
     }
 
     func debugApplicationState() -> Void {
