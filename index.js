@@ -1,8 +1,13 @@
 'use strict';
 var _InCallManager = require('react-native').NativeModules.InCallManager;
+import {
+    Platform,
+    Vibration,
+} from 'react-native';
 
 class InCallManager {
     constructor() {
+        this.vibrate = false;
         this.recordPermission = 'unknow';
         this.caeraPermission = 'unknow';
         this.checkRecordPermission = this.checkRecordPermission.bind(this);
@@ -55,12 +60,23 @@ class InCallManager {
         _InCallManager.setMicrophoneMute(enable);
     }
 
-    startRingtone(ringtone) {
+    startRingtone(ringtone, vibrate=false) {
         ringtone = (typeof ringtone === 'string') ? ringtone : "_DEFAULT_";
         _InCallManager.startRingtone(ringtone);
+        this.vibrate = vibrate;
+        if (this.vibrate) {
+            if (Platform.OS === 'android') {
+                Vibration.vibrate([0, 1000, 3000], true);
+            } else {
+                this.vibrate = false;
+            }
+        }
     }
 
     stopRingtone() {
+        if (this.vibrate) {
+            Vibration.cancel();
+        }
         _InCallManager.stopRingtone();
     }
 
@@ -69,28 +85,28 @@ class InCallManager {
     }
 
     async checkRecordPermission() {
-		// --- on android which api < 23, it will always be "granted"
+        // --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.checkRecordPermission();
         this.recordPermission = result;
         return result;
     }
 
     async requestRecordPermission() {
-		// --- on android which api < 23, it will always be "granted"
+        // --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.requestRecordPermission();
         this.recordPermission = result;
         return result;
     }
 
     async checkCameraPermission() {
-		// --- on android which api < 23, it will always be "granted"
+        // --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.checkCameraPermission();
         this.cameraPermission = result;
         return result;
     }
 
     async requestCameraPermission() {
-		// --- on android which api < 23, it will always be "granted"
+        // --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.requestCameraPermission();
         this.cameraPermission = result;
         return result;
