@@ -45,8 +45,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var audioSessionMediaServicesWereResetObserver: NSObjectProtocol?
     var audioSessionSilenceSecondaryAudioHintObserver: NSObjectProtocol?
 
-    var defaultAudioMode: String = AVAudioSessionModeVoiceChat
-    var defaultAudioCategory: String = AVAudioSessionCategoryPlayAndRecord
+    var incallAudioMode: String = AVAudioSessionModeVoiceChat
+    var incallAudioCategory: String = AVAudioSessionCategoryPlayAndRecord
     var origAudioCategory: String!
     var origAudioMode: String!
     var audioSessionInitialized: Bool = false
@@ -55,7 +55,12 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var recordPermission: String!
     var cameraPermission: String!
     var media: String = "audio"
-  
+
+    // --- AVAudioSessionCategoryOptionAllowBluetooth:
+    // --- Valid only if the audio session category is AVAudioSessionCategoryPlayAndRecord or AVAudioSessionCategoryRecord.
+    // --- Using VoiceChat/VideoChat mode has the side effect of enabling the AVAudioSessionCategoryOptionAllowBluetooth category option. 
+    // --- So basically, we don't have to add AllowBluetooth options by hand.
+
     //@objc func initWithBridge(_bridge: RCTBridge) {
     //self.bridge = _bridge
     override init() {
@@ -80,17 +85,17 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
         // --- auto is always true on ios
         if self.media == "video" {
-            self.defaultAudioMode = AVAudioSessionModeVideoChat
+            self.incallAudioMode = AVAudioSessionModeVideoChat
         } else {
-            self.defaultAudioMode = AVAudioSessionModeVoiceChat
+            self.incallAudioMode = AVAudioSessionModeVoiceChat
         }
-        NSLog("RNInCallManager.start() start InCallManager. media=\(self.media), type=\(self.media), mode=\(self.defaultAudioMode)")
+        NSLog("RNInCallManager.start() start InCallManager. media=\(self.media), type=\(self.media), mode=\(self.incallAudioMode)")
         self.storeOriginalAudioSetup()
         self.forceSpeakerOn = 0;
         self.startAudioSessionNotification()
-        //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
-        self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
-        self.audioSessionSetMode(self.defaultAudioMode, #function)
+        //self.audioSessionSetCategory(self.incallAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+        self.audioSessionSetCategory(self.incallAudioCategory, nil, #function)
+        self.audioSessionSetMode(self.incallAudioMode, #function)
         self.audioSessionSetActive(true, nil, #function)
         if !(ringbackUriType ?? "").isEmpty {
             NSLog("RNInCallManager.start() play ringback first. type=\(ringbackUriType)")
@@ -551,9 +556,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingback.numberOfLoops = -1 // you need to stop it explicitly
             self.mRingback.prepareToPlay()
 
-            //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
-            self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
-            self.audioSessionSetMode(self.defaultAudioMode, #function)
+            //self.audioSessionSetCategory(self.incallAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+            self.audioSessionSetCategory(self.incallAudioCategory, nil, #function)
+            self.audioSessionSetMode(self.incallAudioMode, #function)
             self.mRingback.play()
         } catch let err {
             NSLog("RNInCallManager.startRingback(): caught error=\(err)")
@@ -597,9 +602,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mBusytone.numberOfLoops = 0 // it's part of start(), will stop at stop() 
             self.mBusytone.prepareToPlay()
 
-            //self.audioSessionSetCategory(self.defaultAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
-            self.audioSessionSetCategory(self.defaultAudioCategory, nil, #function)
-            self.audioSessionSetMode(self.defaultAudioMode, #function)
+            //self.audioSessionSetCategory(self.incallAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
+            self.audioSessionSetCategory(self.incallAudioCategory, nil, #function)
+            self.audioSessionSetMode(self.incallAudioMode, #function)
             self.mBusytone.play()
         } catch let err {
             NSLog("RNInCallManager.startBusytone(): caught error=\(err)")
@@ -617,7 +622,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     }
 
     // --- ringtoneUriType May be empty
-    @objc func startRingtone(ringtoneUriType: String) -> Void {
+    @objc func startRingtone(ringtoneUriType: String, ringtoneCategory: String) -> Void {
         // you may rejected by apple when publish app if you use system sound instead of bundled sound.
         NSLog("RNInCallManager.startRingtone(): type=\(ringtoneUriType)")
         do {
@@ -642,10 +647,19 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.mRingtone.numberOfLoops = -1 // you need to stop it explicitly
             self.mRingtone.prepareToPlay()
 
-            // --- we must use playback to support background playing.
-            // --- make sure you have enabled 'audio' tag ( or 'voip' tag ) at XCode -> Capabilities -> BackgroundMode
+            // --- 1. if we use Playback, it can supports background playing (starting from foreground), but it would not obey Ring/Silent switch.
+            // ---    make sure you have enabled 'audio' tag ( or 'voip' tag ) at XCode -> Capabilities -> BackgroundMode
+            // --- 2. if we use SoloAmbient, it would obey Ring/Silent switch in the foreground, but does not support background playing, 
+			// ---    thus, then you should play ringtone again via local notification after back to home during a ring session.
+
+            // we prefer 2. by default, since most of users doesn't want to interrupted by a ringtone if Silent mode is on.
+
             //self.audioSessionSetCategory(AVAudioSessionCategoryPlayback, [.DuckOthers], #function)
-            self.audioSessionSetCategory(AVAudioSessionCategoryPlayback, nil, #function)
+            if ringtoneCategory == "playback" {
+                self.audioSessionSetCategory(AVAudioSessionCategoryPlayback, nil, #function)
+            } else {
+                self.audioSessionSetCategory(AVAudioSessionCategorySoloAmbient, nil, #function)
+            }
             self.audioSessionSetMode(AVAudioSessionModeDefault, #function)
             //self.audioSessionSetActive(true, nil, #function)
             self.mRingtone.play()
