@@ -1,4 +1,9 @@
 # react-native-incall-manager
+
+[![npm version](https://badge.fury.io/js/react-native-incall-manager.svg)](https://badge.fury.io/js/react-native-incall-manager)
+[![npm downloads](https://img.shields.io/npm/dm/react-native-incall-manager.svg?maxAge=2592000)](https://img.shields.io/npm/dm/react-native-incall-manager.svg?maxAge=2592000)
+
+
 Handling media-routes/sensors/events during a audio/video chat on React Native
 
 ## Purpose:
