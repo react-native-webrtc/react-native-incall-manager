@@ -25,6 +25,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.util.SparseArray;
+import android.view.Display;
 import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
@@ -57,10 +58,13 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     // --- Screen Manager
     private PowerManager mPowerManager;
+    private WakeLock mFullLock = null;
+    private WakeLock mPokeFullLock = null;
     private WakeLock mPartialLock = null;
     private WakeLock mProximityLock = null;
     private Method mPowerManagerRelease;
     private WindowManager.LayoutParams lastLayoutParams;
+    private WindowManager mWindowManager;
 
     // --- AudioRouteManager
     private AudioManager audioManager;
@@ -117,7 +121,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         super(_reactContext);
         reactContext = _reactContext;
         reactContext.addLifecycleEventListener(this);
+        mWindowManager = (WindowManager) reactContext.getSystemService(Context.WINDOW_SERVICE);
         mPowerManager = (PowerManager) reactContext.getSystemService(Context.POWER_SERVICE);
+        mPokeFullLock = mPowerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, TAG);
+        mPokeFullLock.setReferenceCounted(false);
+        mFullLock = mPowerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, TAG);
+        mFullLock.setReferenceCounted(false);
         mPartialLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         mPartialLock.setReferenceCounted(false);
         audioManager = ((AudioManager) reactContext.getSystemService(Context.AUDIO_SERVICE));
@@ -209,6 +218,61 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 }
             }
         }
+    }
+
+    private boolean acquireFullWakeLock() {
+        synchronized (mFullLock) {
+            if (!mFullLock.isHeld()) {
+                Log.d(TAG, "acquireFullWakeLock()");
+                mFullLock.acquire();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean releaseFullWakeLock() {
+        synchronized (mFullLock) {
+            if (mFullLock.isHeld()) {
+                Log.d(TAG, "releaseFullWakeLock()");
+                mFullLock.release();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean acquirePokeFullWakeLockReleaseAfter(long timeout) {
+        synchronized (mPokeFullLock) {
+            if (!mPokeFullLock.isHeld()) {
+                mPokeFullLock.acquire(timeout);
+                Log.d(TAG, String.format("acquirePokeFullWakeLockReleaseAfter(%s)", timeout));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean acquirePokeFullWakeLock() {
+        synchronized (mPokeFullLock) {
+            if (!mPokeFullLock.isHeld()) {
+                Log.d(TAG, "acquirePokeFullWakeLock()");
+                mPokeFullLock.acquire();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean releasePokeFullWakeLock() {
+        synchronized (mPokeFullLock) {
+            if (mPokeFullLock.isHeld()) {
+                Log.d(TAG, "releasePokeFullWakeLock()");
+                mPokeFullLock.release();
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean acquirePartialWakeLock() {
@@ -689,6 +753,59 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
+    public void pokeScreen(int timeout) {
+        //debugScreenPowerState();
+        if (!mPowerManager.isInteractive() && mWindowManager.getDefaultDisplay().getState() != Display.STATE_ON) {
+            Log.d(TAG, "pokeScreen()");
+            if (timeout > 0) {
+                acquirePokeFullWakeLockReleaseAfter(timeout); // --- ms
+            } else {
+                acquirePokeFullWakeLock();
+                releasePokeFullWakeLock();
+            }
+        }
+    }
+
+    private void debugScreenPowerState() {
+        String isDeviceIdleMode = "unknow"; // --- API 23
+        String isIgnoringBatteryOptimizations = "unknow"; // --- API 23
+        String isPowerSaveMode = "unknow"; // --- API 21
+        String isInteractive = "unknow"; // --- API 20 ( before since API 7 is: isScreenOn())
+        String screenState = "unknow"; // --- API 20
+
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            isDeviceIdleMode = String.format("%s", mPowerManager.isDeviceIdleMode());
+            isIgnoringBatteryOptimizations = String.format("%s", mPowerManager.isIgnoringBatteryOptimizations(reactContext.getPackageName()));
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            isPowerSaveMode = String.format("%s", mPowerManager.isPowerSaveMode());
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 20) {
+            isInteractive = String.format("%s", mPowerManager.isInteractive());
+            Display display = mWindowManager.getDefaultDisplay();
+            switch (display.getState()) {
+                case Display.STATE_OFF:
+                    screenState = "STATE_OFF";
+                    break;
+                case Display.STATE_ON:
+                    screenState = "STATE_ON";
+                    break;
+                case Display.STATE_DOZE:
+                    screenState = "STATE_DOZE";
+                    break;
+                case Display.STATE_DOZE_SUSPEND:
+                    screenState = "STATE_DOZE_SUSPEND";
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            isInteractive = String.format("%s", mPowerManager.isScreenOn());
+        }
+        Log.d(TAG, String.format("debugScreenPowerState(): screenState='%s', isInteractive='%s', isPowerSaveMode='%s', isDeviceIdleMode='%s', isIgnoringBatteryOptimizations='%s'", screenState, isInteractive, isPowerSaveMode, isDeviceIdleMode, isIgnoringBatteryOptimizations));
+    }
+
+    @ReactMethod
     public void turnScreenOn() {
         if (isProximityWakeLockSupported()) {
             Log.d(TAG, "turnScreenOn(): use proximity lock.");
@@ -956,8 +1073,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
             */
             setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
+            releasePokeFullWakeLock();
+            acquireFullWakeLock();
             mRingtone.startPlay(data);
         } catch(Exception e) {
+            releaseFullWakeLock();
             Log.d(TAG, "startRingtone() failed");
         }   
     }
@@ -970,6 +1090,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 mRingtone = null;
                 restoreOriginalAudioSetup();
             }
+            releaseFullWakeLock();
         } catch(Exception e) {
             Log.d(TAG, "stopRingtone() failed");
         }   

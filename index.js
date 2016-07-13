@@ -119,6 +119,15 @@ class InCallManager {
         this.cameraPermission = result;
         return result;
     }
+
+    pokeScreen(_timeout) {
+        if (Platform.OS === 'android') {
+            let timeout = (typeof _timeout === "number" && _timeout > 0) ? _timeout : 0;
+            _InCallManager.pokeScreen(timeout);
+        } else {
+            console.log("ios doesn't support pokeScreen()");
+        }
+    }
 }
 
 export default new InCallManager();
