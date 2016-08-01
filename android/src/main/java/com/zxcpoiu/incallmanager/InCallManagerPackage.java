@@ -6,8 +6,6 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -15,9 +13,7 @@ public class InCallManagerPackage implements ReactPackage {
 
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
-        List<NativeModule> modules = new ArrayList<>();
-        modules.add(new InCallManagerModule(reactContext));
-        return modules;
+        return Collections.<NativeModule>singletonList(new InCallManagerModule(reactContext));
     }
 
     @Override
@@ -27,7 +23,7 @@ public class InCallManagerPackage implements ReactPackage {
 
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
-		return Collections.emptyList();
+        return Collections.emptyList();
     }
 
     public static void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
