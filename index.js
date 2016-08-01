@@ -82,7 +82,7 @@ class InCallManager {
             if (Platform.OS === 'android') {
                 Vibration.vibrate([0, 1000, 3000], true);
             } else {
-                this.vibrate = false;
+                Vibration.vibrate([0, 3000], true); // --- should enable this  after RN merged our PR
             }
         }
     }
