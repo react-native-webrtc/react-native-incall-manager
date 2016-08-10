@@ -783,7 +783,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void pokeScreen(int timeout) {
         //debugScreenPowerState();
-        if (!mPowerManager.isInteractive() && mWindowManager.getDefaultDisplay().getState() != Display.STATE_ON) {
+        //if (!mPowerManager.isInteractive() && mWindowManager.getDefaultDisplay().getState() != Display.STATE_ON) {
+        if (!mPokeFullLock.isHeld()) {
             Log.d(TAG, "pokeScreen()");
             if (timeout > 0) {
                 acquirePokeFullWakeLockReleaseAfter(timeout); // --- ms
