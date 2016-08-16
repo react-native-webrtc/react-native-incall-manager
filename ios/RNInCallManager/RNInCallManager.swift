@@ -650,7 +650,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             // --- 1. if we use Playback, it can supports background playing (starting from foreground), but it would not obey Ring/Silent switch.
             // ---    make sure you have enabled 'audio' tag ( or 'voip' tag ) at XCode -> Capabilities -> BackgroundMode
             // --- 2. if we use SoloAmbient, it would obey Ring/Silent switch in the foreground, but does not support background playing, 
-			// ---    thus, then you should play ringtone again via local notification after back to home during a ring session.
+            // ---    thus, then you should play ringtone again via local notification after back to home during a ring session.
 
             // we prefer 2. by default, since most of users doesn't want to interrupted by a ringtone if Silent mode is on.
 
@@ -676,6 +676,24 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             self.restoreOriginalAudioSetup()
             self.audioSessionSetActive(false, .NotifyOthersOnDeactivation, #function)
         }
+    }
+
+    @objc func getAudioUriJS(audioType: String, fileType: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+        var _result: NSURL? = nil
+        if audioType == "ringback" {
+            _result = getRingbackUri(fileType)
+        } else if audioType == "busytone" {
+            _result = getBusytoneUri(fileType)
+        } else if audioType == "ringtone" {
+            _result = getRingtoneUri(fileType)
+        }
+        if let result: NSURL? = _result {
+            if let urlString = result?.absoluteString {
+                resolve(urlString)
+                return
+            }
+        }
+        reject("error_code", "getAudioUriJS() failed", NSError(domain:"getAudioUriJS", code: 0, userInfo: nil))
     }
 
     func getRingbackUri(_type: String) -> NSURL? {

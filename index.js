@@ -10,6 +10,11 @@ class InCallManager {
         this.vibrate = false;
         this.recordPermission = 'unknow';
         this.caeraPermission = 'unknow';
+        this.audioUriMap = {
+            ringtone: { _BUNDLE_: null, _DEFAULT_: null},
+            ringback: { _BUNDLE_: null, _DEFAULT_: null},
+            busytone: { _BUNDLE_: null, _DEFAULT_: null},
+        };
         this.checkRecordPermission = this.checkRecordPermission.bind(this);
         this.requestRecordPermission = this.requestRecordPermission.bind(this);
         this.checkCameraPermission = this.checkCameraPermission.bind(this);
@@ -126,6 +131,27 @@ class InCallManager {
             _InCallManager.pokeScreen(timeout);
         } else {
             console.log("ios doesn't support pokeScreen()");
+        }
+    }
+
+    async getAudioUri(audioType, fileType) {
+        if (typeof this.audioUriMap[audioType] === "undefined") {
+            return null;
+        }
+        if (this.audioUriMap[audioType][fileType]) {
+            return this.audioUriMap[audioType][fileType];
+        } else {
+            try {
+                let result = await _InCallManager.getAudioUriJS(audioType, fileType);
+                if (typeof result === 'string' && result.length > 0) {
+                    this.audioUriMap[audioType][fileType] = result;
+                    return result
+                } else {
+                    return null;
+                }
+            } catch (err) {
+                return null;
+            }
         }
     }
 }

@@ -24,5 +24,6 @@ RCT_EXTERN_METHOD(checkRecordPermission:(RCTPromiseResolveBlock)resolve reject:(
 RCT_EXTERN_METHOD(requestRecordPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(checkCameraPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(requestCameraPermission:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getAudioUriJS:(NSString *)audioType fileType:(NSString *)fileType resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 @end

@@ -1178,6 +1178,27 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     }
 
+    @ReactMethod
+    public void getAudioUriJS(String audioType, String fileType, Promise promise) {
+        Uri result = null;
+        if (audioType.equals("ringback")) {
+            result = getRingbackUri(fileType);
+        } else if (audioType.equals("busytone")) {
+            result = getBusytoneUri(fileType);
+        } else if (audioType.equals("ringtone")) {
+            result = getRingtoneUri(fileType);
+        }
+        try {
+            if (result != null) {
+                promise.resolve(result.toString());
+            } else {
+                promise.reject("failed");
+            }
+        } catch (Exception e) {
+            promise.reject("failed");
+        }
+    }
+
     private Uri getRingtoneUri(final String _type) {
         final String fileBundle = "incallmanager_ringtone";
         final String fileBundleExt = "mp3";
