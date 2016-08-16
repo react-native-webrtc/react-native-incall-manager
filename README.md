@@ -249,6 +249,7 @@ note: ios only supports `auto` currently.
 | setMicrophoneMute(`enable: ?boolean`)   | :smile: | :rage: | mute/unmute micophone</br>default: false</br>p.s. if you use webrtc, you can just use `track.enabled = false` to mute |
 | async checkRecordPermission()   | :smile: | :smile: | check record permission without promt. return Promise. see **about permission** section above |
 | async requestRecordPermission()   | :smile: | :smile: | request record permission to user. return Promise. see **about permission** section above |
+| async getAudioUriJS()   | :smile: | :smile: | get audio Uri path. this would be useful when you want to pass Uri into another module. |
 
 **Events**
 
