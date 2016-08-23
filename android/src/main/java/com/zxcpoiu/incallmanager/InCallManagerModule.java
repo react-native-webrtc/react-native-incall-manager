@@ -1656,13 +1656,13 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @Override
     public void onHostResume() {
         Log.d(TAG, "onResume()");
-        resume();
+        //resume();
     }
 
     @Override
     public void onHostPause() {
         Log.d(TAG, "onPause()");
-        pause();
+        //pause();
     }
 
     @Override
