@@ -377,7 +377,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.audioSessionRouteChangeObserver = self.startObserve(AVAudioSessionRouteChangeNotification, object: nil, queue: nil) { notification in
             guard notification.name == AVAudioSessionRouteChangeNotification && notification.userInfo != nil else { return }
 
-            if let rawValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as ? UInt {
+            if let rawValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt {
                 if let type = AVAudioSessionRouteChangeReason(rawValue: rawValue) {
                     switch type {
                         case .Unknown:
