@@ -19,6 +19,7 @@ import android.net.Uri;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.os.Build;
+import android.os.Handler;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -44,6 +45,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.Runnable;
 import java.io.File;
 import java.util.Map;
 import java.util.HashMap;
@@ -103,6 +105,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private MyPlayerInterface mRingtone;
     private MyPlayerInterface mRingback;
     private MyPlayerInterface mBusytone;
+    private Handler mRingtoneCountDownHandler;
     private String media = "audio";
     private static String recordPermission = "unknow";
     private static String cameraPermission = "unknow";
@@ -1062,7 +1065,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void startRingtone(final String ringtoneUriType) {
+    public void startRingtone(final String ringtoneUriType, final int seconds) {
         try {
             Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
             if (mRingtone != null) {
@@ -1105,6 +1108,20 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             releasePokeFullWakeLock();
             acquireFullWakeLock();
             mRingtone.startPlay(data);
+
+            if (seconds > 0) {
+                mRingtoneCountDownHandler = new Handler();
+                mRingtoneCountDownHandler.postDelayed(new Runnable() {
+                    public void run() {
+                        try {
+                            Log.d(TAG, String.format("mRingtoneCountDownHandler.stopRingtone() timeout after %d seconds", seconds));
+                            stopRingtone();
+                        } catch(Exception e) {
+                            Log.d(TAG, "mRingtoneCountDownHandler.stopRingtone() failed.");
+                        }
+                    }
+                }, seconds * 1000);
+            }
         } catch(Exception e) {
             releaseFullWakeLock();
             Log.d(TAG, "startRingtone() failed");
@@ -1118,6 +1135,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 mRingtone.stopPlay();
                 mRingtone = null;
                 restoreOriginalAudioSetup();
+            }
+            if (mRingtoneCountDownHandler != null) {
+                mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
+                mRingtoneCountDownHandler = null;
             }
             releaseFullWakeLock();
         } catch(Exception e) {

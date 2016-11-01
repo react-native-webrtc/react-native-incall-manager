@@ -65,13 +65,14 @@ class InCallManager {
         _InCallManager.setMicrophoneMute(enable);
     }
 
-    startRingtone(ringtone, vibrate, ios_category) {
+    startRingtone(ringtone, vibrate, ios_category, seconds) {
         ringtone = (typeof ringtone === 'string') ? ringtone : "_DEFAULT_";
         vibrate = (vibrate === true) ? true : false;
         ios_category = (ios_category === 'playback') ? 'playback' : "default";
+        seconds = (typeof seconds === 'number' && seconds > 0) ? parseInt(seconds) : -1; // --- android only, default looping
 
         if (Platform.OS === 'android') {
-            _InCallManager.startRingtone(ringtone);
+            _InCallManager.startRingtone(ringtone, seconds);
         } else {
             _InCallManager.startRingtone(ringtone, ios_category);
         }
