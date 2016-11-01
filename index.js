@@ -65,9 +65,9 @@ class InCallManager {
         _InCallManager.setMicrophoneMute(enable);
     }
 
-    startRingtone(ringtone, vibrate, ios_category, seconds) {
+    startRingtone(ringtone, vibrate_pattern, ios_category, seconds) {
         ringtone = (typeof ringtone === 'string') ? ringtone : "_DEFAULT_";
-        vibrate = (vibrate === true) ? true : false;
+        this.vibrate = (Array.isArray(vibrate_pattern)) ? true : false;
         ios_category = (ios_category === 'playback') ? 'playback' : "default";
         seconds = (typeof seconds === 'number' && seconds > 0) ? parseInt(seconds) : -1; // --- android only, default looping
 
@@ -77,13 +77,9 @@ class InCallManager {
             _InCallManager.startRingtone(ringtone, ios_category);
         }
 
-        this.vibrate = vibrate;
+        // --- should not use repeat, it may cause infinite loop in some cases.
         if (this.vibrate) {
-            if (Platform.OS === 'android') {
-                Vibration.vibrate([0, 1000, 3000], true);
-            } else {
-                Vibration.vibrate([0, 3000], true); // --- should enable this  after RN merged our PR
-            }
+            Vibration.vibrate(vibrate_pattern, false); // --- ios needs RN 0.34 to support vibration pattern
         }
     }
 
