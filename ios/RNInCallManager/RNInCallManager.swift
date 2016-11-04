@@ -815,7 +815,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             }
         }
         self._checkRecordPermission()
-        var audioSessionProperties: Dictionary <String,Any> = [
+        let audioSessionProperties: Dictionary <String,Any> = [
             "category": self.audioSession.category,
             "categoryOptions": categoryOptions,
             "mode": self.audioSession.mode,
