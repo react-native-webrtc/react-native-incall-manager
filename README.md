@@ -41,6 +41,7 @@ and rename file correspond to sound type:
 ```
 incallmanager_busytone.mp3  
 incallmanager_ringback.mp3  
+incallmanager_ringtone.mp3 
 ```
 
 on android, as long as your file extension supported by android, this module will load it.
@@ -75,7 +76,8 @@ if you want to use bundled ringtone/ringback/busytone sound instead of system so
 
 ```
 incallmanager_busytone.mp3
-incallmanager_ringback.mp3  
+incallmanager_ringback.mp3 
+incallmanager_ringtone.mp3 
 ```
 
 on ios, we only support mp3 files currently.
