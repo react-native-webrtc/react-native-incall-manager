@@ -9,7 +9,7 @@ class InCallManager {
     constructor() {
         this.vibrate = false;
         this.recordPermission = 'unknow';
-        this.caeraPermission = 'unknow';
+        this.cameraPermission = 'unknow';
         this.audioUriMap = {
             ringtone: { _BUNDLE_: null, _DEFAULT_: null},
             ringback: { _BUNDLE_: null, _DEFAULT_: null},
