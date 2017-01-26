@@ -20,6 +20,7 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 
 ## Installation:
 
+old versions (RN < 0.40) please use version `1.5.4`  
 **from npm package**: `npm install react-native-incall-manager`  
 **from git package**: `npm install git://github.com/zxcpoiu/react-native-incall-manager.git`  
 
