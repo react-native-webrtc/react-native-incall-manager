@@ -5,7 +5,7 @@
 //  Copyright 2016 Facebook. All rights reserved.
 //
 
-#import <React/RCTBridgeModule.h>
+#import <RCTBridgeModule.h>
 
 @interface RCT_EXTERN_REMAP_MODULE(InCallManager, RNInCallManager, NSObject)
 
