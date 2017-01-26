@@ -94,9 +94,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         self.forceSpeakerOn = 0;
         self.startAudioSessionNotification()
         //self.audioSessionSetCategory(self.incallAudioCategory, [.DefaultToSpeaker, .AllowBluetooth], #function)
-//        self.audioSessionSetCategory(self.incallAudioCategory, #function, nil)
+        self.audioSessionSetCategory(self.incallAudioCategory, nil, #function)
         self.audioSessionSetMode(self.incallAudioMode, #function)
-//        self.audioSessionSetActive(true, #function, nil)
+        self.audioSessionSetActive(true, nil, #function)
         if !(ringbackUriType ?? "").isEmpty {
             NSLog("RNInCallManager.start() play ringback first. type=\(ringbackUriType)")
             self.startRingback(ringbackUriType)
