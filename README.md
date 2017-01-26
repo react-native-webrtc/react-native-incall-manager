@@ -23,7 +23,11 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 
 #### BREAKING NOTE:
 
-for old RN versions (RN < 0.40) please use version `1.5.4`
+* since `2.1.0`, you should use `RN 40+` and upgrade your xcode to support `swift 3`.  
+  after upgrading xcode, `Edit -> Convert -> To Current Swift Syntax` to invoke `Swift Migration Assistant`  
+  see [Migrating to Swift 2.3 or Swift 3 from Swift 2.2](https://swift.org/migration-guide/)
+ 
+* for old RN versions (RN < 0.40) please use version `1.5.4` ( Swift 2.2~2.3 )
 
 
 **from npm package**: `npm install react-native-incall-manager`  
