@@ -56,6 +56,8 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var cameraPermission: String!
     var media: String = "audio"
 
+    private lazy var device: AVCaptureDevice? = { AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo) }()
+
     // --- AVAudioSessionCategoryOptionAllowBluetooth:
     // --- Valid only if the audio session category is AVAudioSessionCategoryPlayAndRecord or AVAudioSessionCategoryRecord.
     // --- Using VoiceChat/VideoChat mode has the side effect of enabling the AVAudioSessionCategoryOptionAllowBluetooth category option. 
@@ -247,6 +249,24 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
             NSLog("RNInCallManager.\(callerMemo): audioSession.setActive(\(audioActive), withOptions: \(options)) success")
         } catch let err {
             NSLog("RNInCallManager.\(callerMemo): audioSession.setActive(\(audioActive), withOptions: \(options)) failed: \(err)")
+        }
+    }
+
+    @objc func setFlashOn(enable: Bool, brightness: NSNumber) -> Void {
+        guard let device = device else { return }
+        if device.hasTorch && device.position == AVCaptureDevicePosition.Back {
+            do {
+                try device.lockForConfiguration()
+                if enable {
+                    try device.setTorchModeOnWithLevel(brightness.floatValue)
+                } else {
+                    device.torchMode = .Off
+                }
+                NSLog("RNInCallManager.setForceSpeakerphoneOn(): enable: \(enable)")
+                device.unlockForConfiguration()
+            } catch let error {
+                NSLog("RNInCallManager.setFlashOn error != \(error)")
+            }
         }
     }
 
