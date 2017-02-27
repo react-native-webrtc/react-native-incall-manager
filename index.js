@@ -45,6 +45,17 @@ class InCallManager {
         _InCallManager.turnScreenOn();
     }
 
+    setFlashOn(enable, brightness) {
+        if (Platform.OS === 'ios') {
+            enable = (enable === true) ? true : false;
+            brightness = (typeof brightness === 'number') ? brightness : 0;
+            _InCallManager.setFlashOn(enable, brightness);
+        } else {
+            console.log("Android doesn't support setFlashOn(enable, brightness)");
+        }
+    }
+
+
     setKeepScreenOn(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setKeepScreenOn(enable);

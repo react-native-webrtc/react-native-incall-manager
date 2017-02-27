@@ -13,6 +13,7 @@ RCT_EXTERN_METHOD(start:(NSString *)mediaType auto:(BOOL)auto ringbackUriType:(N
 RCT_EXTERN_METHOD(stop:(NSString *)busytone)
 RCT_EXTERN_METHOD(turnScreenOn)
 RCT_EXTERN_METHOD(turnScreenOff)
+RCT_EXTERN_METHOD(setFlashOn:(BOOL)enable brightness:(nonnull NSNumber *)brightness)
 RCT_EXTERN_METHOD(setKeepScreenOn:(BOOL)enable)
 RCT_EXTERN_METHOD(setSpeakerphoneOn:(BOOL)enable)
 RCT_EXTERN_METHOD(setForceSpeakerphoneOn:(int)flag)
