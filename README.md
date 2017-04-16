@@ -34,7 +34,7 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 **from git package**: `npm install git://github.com/zxcpoiu/react-native-incall-manager.git`  
 
 ===================================================
-####android:
+#### android:
 
 After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
 use `rnpm link react-native-incall-manager` to link or manually if you like.
@@ -59,7 +59,7 @@ on android, as long as your file extension supported by android, this module wil
 
 ===================================================
 
-####ios:
+#### ios:
 
 since ios part written in swift and it doesn't support static library yet.  
 before that, you should add this project manually:
