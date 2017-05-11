@@ -55,7 +55,6 @@ class InCallManager {
         }
     }
 
-
     setKeepScreenOn(enable) {
         enable = (enable === true) ? true : false;
         _InCallManager.setKeepScreenOn(enable);
@@ -104,6 +103,20 @@ class InCallManager {
     stopRingback() {
         _InCallManager.stopRingback();
     }
+
+    startInCallProximity(setup) {
+        if (Platform.OS === 'android') {
+            let media = (setup.media === 'video') ? 'video' : 'audio';
+            _InCallManager.startInCallProximity(media);
+        }
+    }
+
+    stopInCallProximity() {
+        if (Platform.OS === 'android') {
+            _InCallManager.stopInCallProximity();
+        }
+    }
+
 
     async checkRecordPermission() {
         // --- on android which api < 23, it will always be "granted"
