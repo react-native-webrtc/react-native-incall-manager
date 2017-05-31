@@ -763,6 +763,36 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         releaseAudioFocus();
     }
 
+    @ReactMethod
+    public void startInCallProximity(final String _media) {
+        media = _media;
+        if (media.equals("video")) {
+            defaultSpeakerOn = true;
+        } else {
+            defaultSpeakerOn = false;
+        }
+        requestAudioFocus();
+        startWiredHeadsetEvent();
+        startNoisyAudioEvent();
+        startMediaButtonEvent();
+        if (!defaultSpeakerOn) {
+            // video, default disable proximity
+            startProximitySensor();
+        }
+        setKeepScreenOn(true);
+    }
+
+    @ReactMethod
+    public void stopInCallProximity() {
+        stopWiredHeadsetEvent();
+        stopNoisyAudioEvent();
+        stopMediaButtonEvent();
+        stopProximitySensor();
+        setKeepScreenOn(false);
+        turnScreenOn();
+        releaseAudioFocus();
+    }
+
     private void requestAudioFocus() {
         if (!isAudioFocused) {
             int result = audioManager.requestAudioFocus(mOnFocusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN);
@@ -889,7 +919,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             public void run() {
                 Activity mCurrentActivity = getCurrentActivity();
                 if (mCurrentActivity == null) {
-                    Log.d(TAG, "ReactContext doesn't hava any Activity attached.");
+                    Log.d(TAG, "ReactContext doesn't have any Activity attached.");
                     return;
                 }
                 Window window = mCurrentActivity.getWindow();
@@ -934,8 +964,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
-    /** 
-     * This is part of start() process. 
+    /**
+     * This is part of start() process.
      * ringbackUriType must not empty. empty means do not play.
      */
     public void startRingback(final String ringbackUriType) {
@@ -964,7 +994,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 ringbackUri = getRingbackUri(ringbackUriType);
                 if (ringbackUri == null) {
                     Log.d(TAG, "startRingback(): no available media");
-                    return;    
+                    return;
                 }
             }
 
@@ -982,7 +1012,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             mRingback.startPlay(data);
         } catch(Exception e) {
             Log.d(TAG, "startRingback() failed");
-        }   
+        }
     }
 
     @ReactMethod
@@ -994,11 +1024,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             }
         } catch(Exception e) {
             Log.d(TAG, "stopRingback() failed");
-        }   
+        }
     }
 
-    /** 
-     * This is part of start() process. 
+    /**
+     * This is part of start() process.
      * busytoneUriType must not empty. empty means do not play.
      * return false to indicate play tone failed and should be stop() immediately
      * otherwise, it will stop() after a tone completed.
@@ -1029,7 +1059,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 busytoneUri = getBusytoneUri(busytoneUriType);
                 if (busytoneUri == null) {
                     Log.d(TAG, "startBusytone(): no available media");
-                    return false;    
+                    return false;
                 }
             }
 
@@ -1050,7 +1080,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             Log.d(TAG, "startBusytone() failed");
             Log.d(TAG, e.getMessage());
             return false;
-        }   
+        }
     }
 
     public void stopBusytone() {
@@ -1061,7 +1091,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             }
         } catch(Exception e) {
             Log.d(TAG, "stopBusytone() failed");
-        }   
+        }
     }
 
     @ReactMethod
@@ -1088,7 +1118,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
             if (ringtoneUri == null) {
                 Log.d(TAG, "startRingtone(): no available media");
-                return;    
+                return;
             }
 
             storeOriginalAudioSetup();
@@ -1125,7 +1155,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         } catch(Exception e) {
             releaseFullWakeLock();
             Log.d(TAG, "startRingtone() failed");
-        }   
+        }
     }
 
     @ReactMethod
@@ -1143,7 +1173,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             releaseFullWakeLock();
         } catch(Exception e) {
             Log.d(TAG, "stopRingtone() failed");
-        }   
+        }
     }
 
     private void setMediaPlayerEvents(MediaPlayer mp, final String name) {
@@ -1154,7 +1184,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             public boolean onError(MediaPlayer mp, int what, int extra) {
                 Log.d(TAG, String.format("MediaPlayer %s onError(). what: %d, extra: %d", name, what, extra));
                 //return True if the method handled the error
-                //return False, or not having an OnErrorListener at all, will cause the OnCompletionListener to be called. Get news & tips 
+                //return False, or not having an OnErrorListener at all, will cause the OnCompletionListener to be called. Get news & tips
                 return true;
             }
         });
@@ -1180,7 +1210,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
                 } else if (name.equals("mRingtone")) {
                     audioManager.setMode(AudioManager.MODE_RINGTONE);
-                } 
+                }
                 updateAudioRoute();
                 mp.start();
             }
@@ -1260,7 +1290,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         String type;
         // --- _type would never be empty here. just in case.
         if (_type.equals("_DEFAULT_") ||  _type.isEmpty()) {
-            //type = fileSysWithExt; // --- 
+            //type = fileSysWithExt; // ---
             return getDefaultUserUri("defaultBusytoneUri");
         } else {
             type = _type;
@@ -1447,7 +1477,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                             audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
                         } else if (caller.equals("mRingtone")) {
                             audioManager.setMode(AudioManager.MODE_RINGTONE);
-                        } 
+                        }
                         InCallManagerModule.this.updateAudioRoute();
 
                         tg.startTone(toneType);
