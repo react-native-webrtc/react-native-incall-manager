@@ -56,7 +56,7 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
     var cameraPermission: String!
     var media: String = "audio"
 
-    private lazy var device: AVCaptureDevice? = { AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo) }()
+    private lazy var device: AVCaptureDevice? = { AVCaptureDevice.defaultDevice(withMediaType: AVMediaTypeVideo) }()
 
     // --- AVAudioSessionCategoryOptionAllowBluetooth:
     // --- Valid only if the audio session category is AVAudioSessionCategoryPlayAndRecord or AVAudioSessionCategoryRecord.
@@ -254,13 +254,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
 
     @objc func setFlashOn(enable: Bool, brightness: NSNumber) -> Void {
         guard let device = device else { return }
-        if device.hasTorch && device.position == AVCaptureDevicePosition.Back {
+        if device.hasTorch && device.position == .back {
             do {
                 try device.lockForConfiguration()
                 if enable {
                     try device.setTorchModeOnWithLevel(brightness.floatValue)
                 } else {
-                    device.torchMode = .Off
+                    device.torchMode = .off
                 }
                 NSLog("RNInCallManager.setForceSpeakerphoneOn(): enable: \(enable)")
                 device.unlockForConfiguration()
