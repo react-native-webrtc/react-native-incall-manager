@@ -45,6 +45,10 @@ class InCallManager {
         _InCallManager.turnScreenOn();
     }
 
+    getIsWiredHeadsetPluggedIn(callback) {
+        return _InCallManager.getIsWiredHeadsetPluggedIn(callback);
+    }
+
     setFlashOn(enable, brightness) {
         if (Platform.OS === 'ios') {
             enable = (enable === true) ? true : false;

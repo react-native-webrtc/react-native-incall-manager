@@ -212,6 +212,13 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         return false
     }
 
+    @objc func getIsWiredHeadsetPluggedIn(_ callback: RCTResponseSenderBlock) -> Void {
+        let isWiredHeadsetPluggedIn = self.isWiredHeadsetPluggedIn()
+        callback([
+            ["isWiredHeadsetPluggedIn": isWiredHeadsetPluggedIn]
+        ])
+    }
+
     func isWiredHeadsetPluggedIn() -> Bool {
         // --- only check for a audio device plugged into headset port instead bluetooth/usb/hdmi
         return self.checkAudioRoute([AVAudioSessionPortHeadphones], "output") || self.checkAudioRoute([AVAudioSessionPortHeadsetMic], "input")
