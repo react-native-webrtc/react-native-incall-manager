@@ -8,12 +8,12 @@ Handling media-routes/sensors/events during a audio/video chat on React Native
 
 ## Purpose:
 The purpose of this module is to handle actions/events during a phone call (audio/video) on `react-native`, ex:
-* manage devices events like wired-headset plugged, proximity sensors and expose to javascript.
-* automatically route audio to proper device based on events and platform API.
-* toggle speaker or microphone on/off, toggle flash light on/off (not implemented yes)
+* manage devices events like wired-headset plugged in state, proximity sensors and expose functionalities to javascript.
+* automatically route audio to proper devices based on events and platform API.
+* toggle speaker or microphone on/off, toggle flash light on/off
 * play ringtone/ringback/dtmftone
 
-basically, it is a telecommunication module which handle most of requirements when making/receiving/talking to a call.
+basically, it is a telecommunication module which handles most of requirements when making/receiving/talking with a call.
 
 This module is desinged to work with [react-native-webrtc](https://github.com/oney/react-native-webrtc)
 you can find demo here: https://github.com/oney/RCTWebRTCDemo
@@ -39,14 +39,13 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
 use `rnpm link react-native-incall-manager` to link or manually if you like.
 
-**optional sound files on android**
-if you want to use bundled ringtone/ringback/busytone sound instead of system sound 
-  
 We use android support library v4 to check/request permissions.  
 You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.  
-  
-put files in `android/app/src/main/res/raw`
-and rename file correspond to sound type:
+
+**optional sound files on android**  
+if you want to use bundled ringtone/ringback/busytone sound instead of system sound,  
+put files in `android/app/src/main/res/raw`  
+and rename file correspond to sound type:  
 
 ```
 incallmanager_busytone.mp3  
@@ -56,13 +55,13 @@ incallmanager_ringtone.mp3
 
 on android, as long as your file extension supported by android, this module will load it.
 
-
 ===================================================
 
 #### ios:
 
 since ios part written in swift and it doesn't support static library yet.  
-before that, you should add this project manually:
+before that, you should add this project manually  
+please do it step by step carefully :pray: :  
 
 - **Add files in to your project:**
 
@@ -76,6 +75,18 @@ before that, you should add this project manually:
 - **Setup Objective-C Bridging Header:**  
   1. click your `project's xcodeproject root`, go to `build setting` and search `Objective-C Bridging Header`
   2. set you header location, the default path is: `ReactNativeProjectRoot/ios/`, in this case, you should set `../node_modules/react-native-incall-manager/ios/RNInCallManager/RNInCallManager-Bridging-Header.h`
+
+- **Clean project if messed up:**  
+  The installation steps are a bit complex, it might related your xcode version, xcode cache, converting swift version, and your own path configurations. if something messed up, please folow steps below to clean this project, then do it again steps by steps.
+
+  1. delete all project/directory in xcode related to incall-manager
+  2. delete `react-native-incall-manager` in node_modules ( rm -rf )
+  3. Xcode -> Product -> clean
+  4. close xcode
+  5. npm install again
+  6. open xcode and try the install process again steps by steps
+
+  if someone knows a simpler way to set this project up, let me know plz.
 
 **optional sound files on android**
 if you want to use bundled ringtone/ringback/busytone sound instead of system sound 
@@ -263,6 +274,10 @@ note: ios only supports `auto` currently.
 | startRingtone(`ringtone: string, ?vibrate_pattern: array, ?ios_category: string, ?seconds: number`)   | :smile: | :smile: | play ringtone. </br>`ringtone`: '_DEFAULT_' or '_BUNDLE_'</br>`vibrate_pattern`: same as RN, but does not support repeat</br>`ios_category`: ios only, if you want to use specific audio category</br>`seconds`: android only, specify how long do you want to play rather than play once nor repeat. in sec.|
 | stopRingtone()   | :smile: | :smile: | stop play ringtone if previous started via `startRingtone()` |
 | stopRingback()   | :smile: | :smile: | stop play ringback if previous started via `start()` |
+| setFlashOn(`enable: ?boolean, brightness: ?number`)  | :rage: | :smile: | set flash light on/off |
+| async getIsWiredHeadsetPluggedIn()  | :rage: | :smile: | return wired headset plugged in state |
+
+
 
 **Events**
 
