@@ -212,9 +212,9 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         return false
     }
 
-    @objc func getIsWiredHeadsetPluggedIn(_ callback: RCTResponseSenderBlock) -> Void {
+    @objc func getIsWiredHeadsetPluggedIn(_ resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void {
         let isWiredHeadsetPluggedIn = self.isWiredHeadsetPluggedIn()
-        callback([
+        resolve([
             ["isWiredHeadsetPluggedIn": isWiredHeadsetPluggedIn]
         ])
     }
