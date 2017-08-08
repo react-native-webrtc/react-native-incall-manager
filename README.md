@@ -34,7 +34,7 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 **from git package**: `npm install git://github.com/zxcpoiu/react-native-incall-manager.git`  
 
 ===================================================
-#### android:
+### android:
 
 After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
 use `rnpm link react-native-incall-manager` to link or manually if you like.
@@ -42,7 +42,35 @@ use `rnpm link react-native-incall-manager` to link or manually if you like.
 We use android support library v4 to check/request permissions.  
 You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.  
 
-**optional sound files on android**  
+#### Manually Link
+
+if rnpm link doesn't work. ( see: https://github.com/zxcpoiu/react-native-incall-manager/issues/21#issuecomment-279575516 )  
+please add it manually in your main project:
+
+1. in `android/app/build.gradle`
+    should have a line `compile(project(':react-native-incall-manager'))` in `dependencies {}` section
+
+2. in `android/settings.gradle`
+    should have: 
+    ```
+    include ':react-native-incall-manager'
+project(':react-native-incall-manager').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-incall-manager/android')
+    ```
+    
+3. in `MainApplication.java`
+
+    ```java
+    import com.zxcpoiu.incallmanager.InCallManagerPackage;
+    private static List<ReactPackage> getPackages() {
+        return Arrays.<ReactPackage>asList(
+            new MainReactPackage(),
+            new InCallManagerPackage(),
+
+        );
+    }
+    ```
+#### optional sound files on android
+
 if you want to use bundled ringtone/ringback/busytone sound instead of system sound,  
 put files in `android/app/src/main/res/raw`  
 and rename file correspond to sound type:  
@@ -57,13 +85,13 @@ on android, as long as your file extension supported by android, this module wil
 
 ===================================================
 
-#### ios:
+### ios:
 
 since ios part written in swift and it doesn't support static library yet.  
 before that, you should add this project manually  
 please do it step by step carefully :pray: :  
 
-- **Add files in to your project:**
+#### Add files in to your project:
 
   1. Open your project in xcode
   2. find your_project directory under your project's xcodeproject root. ( it's a sub-directoory, not root xcodeproject itself )
@@ -72,11 +100,12 @@ please do it step by step carefully :pray: :
     * right click on your_project directory, `add files` to your project and add `node_modules/react-native-incall-manager/ios/RNInCallManager/`
   4. on the pou-up window, uncheck `Copy items if needed` and select `Added folders: Create groups` then add it. you will see a new directory named `RNInCallmanager under your_project` directory.
 
-- **Setup Objective-C Bridging Header:**  
+#### Setup Objective-C Bridging Header:
   1. click your `project's xcodeproject root`, go to `build setting` and search `Objective-C Bridging Header`
-  2. set you header location, the default path is: `ReactNativeProjectRoot/ios/`, in this case, you should set `../node_modules/react-native-incall-manager/ios/RNInCallManager/RNInCallManager-Bridging-Header.h`
+  2. set you header location, the default path is: `ReactNativeProjectRoot/ios/`,
+     in this case, you should set `../node_modules/react-native-incall-manager/ios/RNInCallManager/RNInCallManager-Bridging-Header.h`
 
-- **Clean project if messed up:**  
+#### Clean project if messed up:
   The installation steps are a bit complex, it might related your xcode version, xcode cache, converting swift version, and your own path configurations. if something messed up, please folow steps below to clean this project, then do it again steps by steps.
 
   1. delete all project/directory in xcode related to incall-manager
@@ -88,7 +117,8 @@ please do it step by step carefully :pray: :
 
   if someone knows a simpler way to set this project up, let me know plz.
 
-**optional sound files on android**
+#### optional sound files on android
+
 if you want to use bundled ringtone/ringback/busytone sound instead of system sound 
 
 1. add files into your_project directory under your project's xcodeproject root. ( or drag into it as described above. )
