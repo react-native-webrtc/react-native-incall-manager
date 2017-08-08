@@ -304,9 +304,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void manualTurnScreenOff() {
         Log.d(TAG, "manualTurnScreenOff()");
-        if (!acquirePartialWakeLock()) {
-            return;
-        }
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
                 Activity mCurrentActivity = getCurrentActivity();
@@ -326,9 +323,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void manualTurnScreenOn() {
         Log.d(TAG, "manualTurnScreenOn()");
-        if (!releasePartialWakeLock()) {
-            return;
-        }
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
                 Activity mCurrentActivity = getCurrentActivity();
@@ -690,6 +684,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         automatic = auto;
         if (!audioManagerInitialized) {
             Log.d(TAG, "start audioRouteManager");
+            acquirePartialWakeLock();
             storeOriginalAudioSetup();
             startEvents();
             // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
@@ -724,6 +719,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 restoreOriginalAudioSetup();
                 audioManagerInitialized = false;
             }
+            releasePartialWakeLock();
         }
     }
 
@@ -1091,6 +1087,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 return;    
             }
 
+            acquirePartialWakeLock();
+
             storeOriginalAudioSetup();
             Map data = new HashMap<String, Object>();
             mRingtone = new myMediaPlayer();
@@ -1105,8 +1103,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
             */
             setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
-            releasePokeFullWakeLock();
-            acquireFullWakeLock();
             mRingtone.startPlay(data);
 
             if (seconds > 0) {
@@ -1123,7 +1119,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 }, seconds * 1000);
             }
         } catch(Exception e) {
-            releaseFullWakeLock();
+            releasePartialWakeLock();
             Log.d(TAG, "startRingtone() failed");
         }   
     }
@@ -1140,10 +1136,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
                 mRingtoneCountDownHandler = null;
             }
-            releaseFullWakeLock();
         } catch(Exception e) {
             Log.d(TAG, "stopRingtone() failed");
         }   
+        releasePartialWakeLock();
     }
 
     private void setMediaPlayerEvents(MediaPlayer mp, final String name) {
