@@ -95,9 +95,9 @@ please do it step by step carefully :pray: :
 
   1. Open your project in xcode
   2. find your_project directory under your project's xcodeproject root. ( it's a sub-directoory, not root xcodeproject itself )
-  3. you can do either:
-    * directly drag your node_modules/react-native-incall-manager/ios/RNInCallManager/ into it.
-    * right click on your_project directory, `add files` to your project and add `node_modules/react-native-incall-manager/ios/RNInCallManager/`
+  3. you can do either:  
+    (recommended) directly drag your node_modules/react-native-incall-manager/ios/RNInCallManager/ into it.  
+    (may have some [path issue](https://github.com/zxcpoiu/react-native-incall-manager/issues/39)) right click on your_project directory, `add files` to your project and add `node_modules/react-native-incall-manager/ios/RNInCallManager/`  
   4. on the pou-up window, uncheck `Copy items if needed` and select `Added folders: Create groups` then add it. you will see a new directory named `RNInCallmanager under your_project` directory.
 
 #### Setup Objective-C Bridging Header:
