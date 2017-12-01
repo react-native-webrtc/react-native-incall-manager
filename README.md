@@ -103,7 +103,11 @@ please do it step by step carefully :pray: :
 #### Setup Objective-C Bridging Header:
   1. click your `project's xcodeproject root`, go to `build setting` and search `Objective-C Bridging Header`
   2. set you header location, the default path is: `ReactNativeProjectRoot/ios/`,
-     in this case, you should set `../node_modules/react-native-incall-manager/ios/RNInCallManager/RNInCallManager-Bridging-Header.h`
+     in this case, you should set `../node_modules/react-native-incall-manager/ios/RNInCallManager/RNInCallManager-Bridging-Header.h`  
+     
+### Swift:     
+Make sure you set swift version to `3.2`: ![swift](https://i.imgur.com/lYubEVt.png)  
+
 
 #### Clean project if messed up:
   The installation steps are a bit complex, it might related your xcode version, xcode cache, converting swift version, and your own path configurations. if something messed up, please folow steps below to clean this project, then do it again steps by steps.
