@@ -259,17 +259,17 @@ class RNInCallManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    @objc func setFlashOn(enable: Bool, brightness: NSNumber) -> Void {
+    @objc func setFlashOn(_ enable: Bool, brightness: NSNumber) -> Void {
         guard let device = device else { return }
-        if device.hasTorch && device.position == .back {
+        if device.hasTorch && device.isTorchAvailable && device.position == .back {
             do {
                 try device.lockForConfiguration()
                 if enable {
-                    try device.setTorchModeOnWithLevel(brightness.floatValue)
+                    try device.setTorchModeOnWithLevel(min(brightness.floatValue, AVCaptureMaxAvailableTorchLevel))
                 } else {
                     device.torchMode = .off
                 }
-                NSLog("RNInCallManager.setForceSpeakerphoneOn(): enable: \(enable)")
+                NSLog("RNInCallManager.setFlashOn(): enable: \(enable)")
                 device.unlockForConfiguration()
             } catch let error {
                 NSLog("RNInCallManager.setFlashOn error != \(error)")
