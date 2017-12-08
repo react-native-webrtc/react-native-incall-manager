@@ -1,0 +1,96 @@
+--- /home/zxcpoiu/git/webrtcbuilds/out/src/examples/androidapp/src/org/appspot/apprtc/AppRTCProximitySensor.java	2017-11-30 16:59:50.918956062 +0800
++++ AppRTCProximitySensor.java	2017-12-08 18:02:05.004106849 +0800
+@@ -8,7 +8,7 @@
+  *  be found in the AUTHORS file in the root of the source tree.
+  */
+ 
+-package org.appspot.apprtc;
++package com.zxcpoiu.incallmanager.AppRTC;
+ 
+ import android.content.Context;
+ import android.hardware.Sensor;
+@@ -17,8 +17,6 @@
+ import android.hardware.SensorManager;
+ import android.os.Build;
+ import android.util.Log;
+-import org.appspot.apprtc.util.AppRTCUtils;
+-import org.webrtc.ThreadUtils;
+ 
+ /**
+  * AppRTCProximitySensor manages functions related to the proximity sensor in
+@@ -35,7 +33,6 @@
+   // This class should be created, started and stopped on one thread
+   // (e.g. the main thread). We use |nonThreadSafe| to ensure that this is
+   // the case. Only active when |DEBUG| is set to true.
+-  private final ThreadUtils.ThreadChecker threadChecker = new ThreadUtils.ThreadChecker();
+ 
+   private final Runnable onSensorStateListener;
+   private final SensorManager sensorManager;
+@@ -43,12 +40,12 @@
+   private boolean lastStateReportIsNear = false;
+ 
+   /** Construction */
+-  static AppRTCProximitySensor create(Context context, Runnable sensorStateListener) {
++  public static AppRTCProximitySensor create(Context context, Runnable sensorStateListener) {
+     return new AppRTCProximitySensor(context, sensorStateListener);
+   }
+ 
+   private AppRTCProximitySensor(Context context, Runnable sensorStateListener) {
+-    Log.d(TAG, "AppRTCProximitySensor" + AppRTCUtils.getThreadInfo());
++    Log.d(TAG, "AppRTCProximitySensor");
+     onSensorStateListener = sensorStateListener;
+     sensorManager = ((SensorManager) context.getSystemService(Context.SENSOR_SERVICE));
+   }
+@@ -58,8 +55,7 @@
+    * first time.
+    */
+   public boolean start() {
+-    threadChecker.checkIsOnValidThread();
+-    Log.d(TAG, "start" + AppRTCUtils.getThreadInfo());
++    Log.d(TAG, "start");
+     if (!initDefaultSensor()) {
+       // Proximity sensor is not supported on this device.
+       return false;
+@@ -70,8 +66,7 @@
+ 
+   /** Deactivate the proximity sensor. */
+   public void stop() {
+-    threadChecker.checkIsOnValidThread();
+-    Log.d(TAG, "stop" + AppRTCUtils.getThreadInfo());
++    Log.d(TAG, "stop");
+     if (proximitySensor == null) {
+       return;
+     }
+@@ -80,14 +75,11 @@
+ 
+   /** Getter for last reported state. Set to true if "near" is reported. */
+   public boolean sensorReportsNearState() {
+-    threadChecker.checkIsOnValidThread();
+     return lastStateReportIsNear;
+   }
+ 
+   @Override
+   public final void onAccuracyChanged(Sensor sensor, int accuracy) {
+-    threadChecker.checkIsOnValidThread();
+-    AppRTCUtils.assertIsTrue(sensor.getType() == Sensor.TYPE_PROXIMITY);
+     if (accuracy == SensorManager.SENSOR_STATUS_UNRELIABLE) {
+       Log.e(TAG, "The values returned by this sensor cannot be trusted");
+     }
+@@ -95,8 +87,6 @@
+ 
+   @Override
+   public final void onSensorChanged(SensorEvent event) {
+-    threadChecker.checkIsOnValidThread();
+-    AppRTCUtils.assertIsTrue(event.sensor.getType() == Sensor.TYPE_PROXIMITY);
+     // As a best practice; do as little as possible within this method and
+     // avoid blocking.
+     float distanceInCentimeters = event.values[0];
+@@ -114,7 +104,7 @@
+       onSensorStateListener.run();
+     }
+ 
+-    Log.d(TAG, "onSensorChanged" + AppRTCUtils.getThreadInfo() + ": "
++    Log.d(TAG, "onSensorChanged" + ": "
+             + "accuracy=" + event.accuracy + ", timestamp=" + event.timestamp + ", distance="
+             + event.values[0]);
+   }

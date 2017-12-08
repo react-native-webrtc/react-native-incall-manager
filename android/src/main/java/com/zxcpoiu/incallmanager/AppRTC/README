@@ -1,0 +1,12 @@
+From WebRTC Source
+M64
+
+Files in this library with prefix "AppRTC" are all get from webrtc source.
+The license / patents remain it's original. see LICENSE in this directory
+
+This library slightly modified original class/package name to get compiled in.
+You can find diffs in `diff` directory as well.
+
+- examples/androidapp/src/org/appspot/apprtc:
+  * AppRTCBluetoothManager.java
+  * AppRTCProximitySensor.java
