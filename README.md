@@ -15,11 +15,21 @@ The purpose of this module is to handle actions/events during a phone call (audi
 * Toggle speaker or microphone on/off, toggle flash light on/off
 * Play ringtone/ringback/dtmftone
 
-Basically, it is a telecommunication module which handles most of requirements when making/receiving/talking with a call.
-
-This module is desinged to work with [react-native-webrtc](https://github.com/oney/react-native-webrtc)
-you can find demo here: https://github.com/oney/RCTWebRTCDemo
-
+Basically, it is a telecommunication module which handles most of requirements when making/receiving/talking with a call.  
+  
+This module is desinged to work with [react-native-webrtc](https://github.com/oney/react-native-webrtc)  
+you can find demo here: https://github.com/oney/RCTWebRTCDemo  
+  
+## TODO / Contribution Wanted:  
+  
+* Make operations run on main thread. ( iOS/Android )  
+* Fix iOS audio shared instance singleton conflit with internal webrtc.  
+* Detect hardward button press event and react to it.  
+  ex: press bluetooth button, send event to JS to answer/hangup.  
+  ex: press power button to mute incoming ringtone.  
+* Use config-based to decide which event should start and report. maybe control behavior as well.  
+* Flash API on Android.  
+  
 ## Installation:
 
 
