@@ -24,7 +24,7 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
   
 * Make operations run on main thread. ( iOS/Android )  
 * Fix iOS audio shared instance singleton conflit with internal webrtc.  
-* Detect hardward button press event and react to it.  
+* Detect hardware button press event and react to it.  
   ex: press bluetooth button, send event to JS to answer/hangup.  
   ex: press power button to mute incoming ringtone.  
 * Use config-based to decide which event should start and report. maybe control behavior as well.  
