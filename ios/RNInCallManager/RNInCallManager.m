@@ -714,7 +714,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     }
 
     NSLog(@"RNInCallManager.startProximitySensor()");
-    //_currentDevice.isProximityMonitoringEnabled = YES;
+    _currentDevice.proximityMonitoringEnabled = YES;
 
     // --- in case it didn't deallocate when ViewDidUnload
     [self stopObserve:_proximityObserver
@@ -743,7 +743,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     }
 
     NSLog(@"RNInCallManager.stopProximitySensor()");
-    //_currentDevice.isProximityMonitoringEnabled = false
+    _currentDevice.proximityMonitoringEnabled = NO;
 
     // --- remove all no matter what object
     [self stopObserve:_proximityObserver
