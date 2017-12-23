@@ -680,7 +680,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     @ReactMethod
-    public void pokeScreen(long timeout) {
+    public void pokeScreen(int timeout) {
         Log.d(TAG, "pokeScreen()");
         wakeLockUtils.acquirePokeFullWakeLockReleaseAfter(timeout); // --- default 3000 ms
     }
