@@ -110,6 +110,10 @@ class InCallManager {
         _InCallManager.stopRingtone();
     }
 
+    startRingback(ringtone) {
+        _InCallManager.startRingback(ringtone);
+    }
+
     stopRingback() {
         _InCallManager.stopRingback();
     }
