@@ -47,7 +47,9 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 
 ===================================================
 ### Android:
-
+  
+note: you might need `android.permission.BLUETOOTH` permisions for Bluetooth to work.
+  
 After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
 use `react-native link react-native-incall-manager` to link or manually if you like.
 
