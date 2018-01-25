@@ -789,7 +789,15 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         Log.d(TAG, "setForceSpeakerphoneOn() flag: " + flag);
         forceSpeakerOn = flag;
 
-        selectAudioDevice((flag == 1) ? AudioDevice.SPEAKER_PHONE : AudioDevice.NONE); // --- will call updateAudioDeviceState()
+        // --- will call updateAudioDeviceState()
+        // --- Note: in some devices, it may not contains specified route thus will not be effected.
+        if (flag == 1) {
+            selectAudioDevice(AudioDevice.SPEAKER_PHONE);
+        } else if (flag == -1) {
+            selectAudioDevice(AudioDevice.EARPIECE); // --- use the most common earpiece to force `speaker off`
+        } else {
+            selectAudioDevice(AudioDevice.NONE); // --- NONE will follow default route, the default route of `video` call is speaker.
+        }
     }
 
     // --- TODO (zxcpoiu): Implement api to let user choose audio devices
