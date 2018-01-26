@@ -643,10 +643,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         startWiredHeadsetEvent();
         startNoisyAudioEvent();
         startMediaButtonEvent();
-        if (!defaultSpeakerOn) {
-            // video, default disable proximity
-            startProximitySensor();
-        }
+        startProximitySensor(); // --- proximity event always enable, but only turn screen off when audio is routing to earpiece.
         setKeepScreenOn(true);
     }
 
