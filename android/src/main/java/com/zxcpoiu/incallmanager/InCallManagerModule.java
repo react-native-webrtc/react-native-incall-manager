@@ -306,15 +306,23 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
+    private void unregisterReceiver(final BroadcastReceiver receiver) {
+        final ReactContext reactContext = this.getReactApplicationContext();
+        if (reactContext != null) {
+            try {
+                reactContext.unregisterReceiver(receiver);
+            } catch (final Exception e) {
+                Log.d(TAG, "unregisterReceiver() failed");
+            }
+        } else {
+            Log.d(TAG, "unregisterReceiver() reactContext is null");
+        }
+    }
+
     private void stopWiredHeadsetEvent() {
         if (wiredHeadsetReceiver != null) {
             Log.d(TAG, "stopWiredHeadsetEvent()");
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.unregisterReceiver(wiredHeadsetReceiver);
-            } else {
-                Log.d(TAG, "stopWiredHeadsetEvent() reactContext is null");
-            }
+            this.unregisterReceiver(this.wiredHeadsetReceiver);
             wiredHeadsetReceiver = null;
         }
     }
@@ -344,12 +352,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private void stopNoisyAudioEvent() {
         if (noisyAudioReceiver != null) {
             Log.d(TAG, "stopNoisyAudioEvent()");
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.unregisterReceiver(noisyAudioReceiver);
-            } else {
-                Log.d(TAG, "stopNoisyAudioEvent() reactContext is null");
-            }
+            this.unregisterReceiver(this.noisyAudioReceiver);
             noisyAudioReceiver = null;
         }
     }
@@ -416,12 +419,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private void stopMediaButtonEvent() {
         if (mediaButtonReceiver != null) {
             Log.d(TAG, "stopMediaButtonEvent()");
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.unregisterReceiver(mediaButtonReceiver);
-            } else {
-                Log.d(TAG, "stopMediaButtonEvent() reactContext is null");
-            }
+            this.unregisterReceiver(this.mediaButtonReceiver);
             mediaButtonReceiver = null;
         }
     }
