@@ -306,19 +306,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
-    private void unregisterReceiver(final BroadcastReceiver receiver) {
-        final ReactContext reactContext = this.getReactApplicationContext();
-        if (reactContext != null) {
-            try {
-                reactContext.unregisterReceiver(receiver);
-            } catch (final Exception e) {
-                Log.d(TAG, "unregisterReceiver() failed");
-            }
-        } else {
-            Log.d(TAG, "unregisterReceiver() reactContext is null");
-        }
-    }
-
     private void stopWiredHeadsetEvent() {
         if (wiredHeadsetReceiver != null) {
             Log.d(TAG, "stopWiredHeadsetEvent()");
@@ -1679,8 +1666,17 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     /** Helper method for unregistration of an existing receiver. */
-    private void unregisterReceiver(BroadcastReceiver receiver) {
-        getReactApplicationContext().unregisterReceiver(receiver);
+    private void unregisterReceiver(final BroadcastReceiver receiver) {
+        final ReactContext reactContext = this.getReactApplicationContext();
+        if (reactContext != null) {
+            try {
+                reactContext.unregisterReceiver(receiver);
+            } catch (final Exception e) {
+                Log.d(TAG, "unregisterReceiver() failed");
+            }
+        } else {
+            Log.d(TAG, "unregisterReceiver() reactContext is null");
+        }
     }
 
     /** Sets the speaker phone mode. */
