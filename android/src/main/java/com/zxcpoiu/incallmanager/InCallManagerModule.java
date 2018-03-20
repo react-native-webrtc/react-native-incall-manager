@@ -1468,6 +1468,22 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 
+    @ReactMethod
+    public void chooseAudioRoute(String audioRoute, Promise promise) {
+        Log.d(TAG, "RNInCallManager.chooseAudioRoute(): user choose audioDevice = " + audioRoute);
+
+        if (audioRoute.equals(AudioDevice.EARPIECE.name())) {
+            selectAudioDevice(AudioDevice.EARPIECE);
+        } else if (audioRoute.equals(AudioDevice.SPEAKER_PHONE.name())) {
+            selectAudioDevice(AudioDevice.SPEAKER_PHONE);
+        } else if (audioRoute.equals(AudioDevice.WIRED_HEADSET.name())) {
+            selectAudioDevice(AudioDevice.WIRED_HEADSET);
+        } else if (audioRoute.equals(AudioDevice.BLUETOOTH.name())) {
+            selectAudioDevice(AudioDevice.BLUETOOTH);
+        }
+        promise.resolve(getAudioDeviceStatusMap());
+    }
+
     private void _requestPermission(String targetPermission, Promise promise) {
         Activity currentActivity = getCurrentActivity();
         if (currentActivity == null) {
@@ -1644,7 +1660,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     /** Changes selection of the currently active audio device. */
     public void selectAudioDevice(AudioDevice device) {
         if (!audioDevices.contains(device)) {
-            Log.e(TAG, "Can not select " + device + " from available " + audioDevices);
+            Log.e(TAG, "selectAudioDevice() Can not select " + device + " from available " + audioDevices);
+            return;
         }
         userSelectedAudioDevice = device;
         updateAudioDeviceState();
@@ -1870,7 +1887,26 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 audioManagerEvents.onAudioDeviceChanged(selectedAudioDevice, audioDevices);
             }
             */
+            sendEvent("onAudioDeviceChanged", getAudioDeviceStatusMap());
         }
         Log.d(TAG, "--- updateAudioDeviceState done");
+    }
+
+    private WritableMap getAudioDeviceStatusMap() {
+        WritableMap data = Arguments.createMap();
+        String audioDevicesJson = "[";
+        for (AudioDevice s: audioDevices) {
+            audioDevicesJson += "\"" + s.name() + "\",";
+        }
+        // --- strip the last `,`
+        if (audioDevicesJson.length() > 1) {
+            audioDevicesJson = audioDevicesJson.substring(0, audioDevicesJson.length() - 1);
+        }
+        audioDevicesJson += "]";
+
+        data.putString("availableAudioDeviceList", audioDevicesJson);
+        data.putString("selectedAudioDevice", selectedAudioDevice.name());
+
+        return data;
     }
 }
