@@ -1898,6 +1898,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         for (AudioDevice s: audioDevices) {
             audioDevicesJson += "\"" + s.name() + "\",";
         }
+
         // --- strip the last `,`
         if (audioDevicesJson.length() > 1) {
             audioDevicesJson = audioDevicesJson.substring(0, audioDevicesJson.length() - 1);
@@ -1905,7 +1906,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         audioDevicesJson += "]";
 
         data.putString("availableAudioDeviceList", audioDevicesJson);
-        data.putString("selectedAudioDevice", selectedAudioDevice.name());
+        data.putString("selectedAudioDevice", (selectedAudioDevice == null) ? "" : selectedAudioDevice.name());
 
         return data;
     }
