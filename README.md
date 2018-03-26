@@ -67,7 +67,7 @@ If `react-native link` doesn't work, ( see: https://github.com/zxcpoiu/react-nat
     Should have: 
     ```
     include ':react-native-incall-manager'
-project(':react-native-incall-manager').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-incall-manager/android')
+    project(':react-native-incall-manager').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-incall-manager/android')
     ```
     
 3. In `MainApplication.java`
