@@ -86,7 +86,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private boolean origIsSpeakerPhoneOn = false;
     private boolean origIsMicrophoneMute = false;
     private int origAudioMode = AudioManager.MODE_INVALID;
-    private int origRingerMode = AudioManager.RINGER_MODE_NORMAL;
     private boolean defaultSpeakerOn = false;
     private int defaultAudioMode = AudioManager.MODE_IN_COMMUNICATION;
     private int forceSpeakerOn = 0;
@@ -251,7 +250,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private void storeOriginalAudioSetup() {
         Log.d(TAG, "storeOriginalAudioSetup()");
         if (!isOrigAudioSetupStored) {
-            origRingerMode = audioManager.getRingerMode();
             origAudioMode = audioManager.getMode();
             origIsSpeakerPhoneOn = audioManager.isSpeakerphoneOn();
             origIsMicrophoneMute = audioManager.isMicrophoneMute();
@@ -265,7 +263,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             setSpeakerphoneOn(origIsSpeakerPhoneOn);
             setMicrophoneMute(origIsMicrophoneMute);
             audioManager.setMode(origAudioMode);
-            audioManager.setRingerMode(origRingerMode);
             if (getCurrentActivity() != null) {
                 getCurrentActivity().setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
             }
