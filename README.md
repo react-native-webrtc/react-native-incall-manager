@@ -102,6 +102,12 @@ On android, as long as your file extension supported by android, this module wil
 
 `react-native link react-native-incall-manager`
 
+#### Using CocoaPods
+
+Update the following line with your path to node_modules/ and add it to your Podfile:
+
+`pod 'ReactNativeIncallManager', :path => '../node_modules/react-native-incall-manager'`
+
 #### Manually Linking
 
 In case `react-native link` doesn't work,
