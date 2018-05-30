@@ -129,10 +129,10 @@ RCT_EXPORT_METHOD(start:(NSString *)mediaType
     if (_audioSessionInitialized) {
         return;
     }
-    if (![_recordPermission isEqualToString:@"granted"]) {
-        NSLog(@"RNInCallManager.start(): recordPermission should be granted. state: %@", _recordPermission);
-        return;
-    }
+    // if (![_recordPermission isEqualToString:@"granted"]) {
+    //     NSLog(@"RNInCallManager.start(): recordPermission should be granted. state: %@", _recordPermission);
+    //     return;
+    // }
     _media = mediaType;
 
     // --- auto is always true on ios
