@@ -714,8 +714,9 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     }
 
     NSLog(@"RNInCallManager.startProximitySensor()");
-    _currentDevice.proximityMonitoringEnabled = YES;
-
+    // _currentDevice.proximityMonitoringEnabled = YES;
+    _currentDevice.proximityMonitoringEnabled = NO;
+    
     // --- in case it didn't deallocate when ViewDidUnload
     [self stopObserve:_proximityObserver
                  name:UIDeviceProximityStateDidChangeNotification
