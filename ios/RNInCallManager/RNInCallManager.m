@@ -493,9 +493,9 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                                       reject:(RCTPromiseRejectBlock)reject)
 {
     BOOL wiredHeadsetPluggedIn = [self isWiredHeadsetPluggedIn];
-    resolve(@[@{
+    resolve(@{
         @"isWiredHeadsetPluggedIn": wiredHeadsetPluggedIn ? @YES : @NO,
-    }]);
+    });
 }
 
 - (void)updateAudioRoute
@@ -730,7 +730,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
         if (state != _proximityIsNear) {
             NSLog(@"RNInCallManager.UIDeviceProximityStateDidChangeNotification(): isNear: %@", state ? @"YES" : @"NO");
             _proximityIsNear = state;
-            [self sendEventWithName:@"Proximity" body:@[@{@"isNear": state ? @YES : @NO}]];
+            [self sendEventWithName:@"Proximity" body:@{@"isNear": state ? @YES : @NO}];
         }
     }];
 
@@ -857,30 +857,30 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                     if ([self checkAudioRoute:@[AVAudioSessionPortHeadsetMic]
                                     routeType:@"input"]) {
                         [self sendEventWithName:@"WiredHeadset"
-                                           body:@[@{
+                                           body:@{
                                                @"isPlugged": @YES,
                                                @"hasMic": @YES,
                                                @"deviceName": AVAudioSessionPortHeadsetMic,
-                                           }]];
+                                           }];
                     } else if ([self checkAudioRoute:@[AVAudioSessionPortHeadphones]
                                            routeType:@"output"]) {
                         [self sendEventWithName:@"WiredHeadset"
-                                           body:@[@{
+                                           body:@{
                                                @"isPlugged": @YES,
                                                @"hasMic": @NO,
                                                @"deviceName": AVAudioSessionPortHeadphones,
-                                           }]];
+                                           }];
                     }
                     break;
                 case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
                     NSLog(@"RNInCallManager.AudioRouteChange.Reason: OldDeviceUnavailable");
                     if (![self isWiredHeadsetPluggedIn]) {
                         [self sendEventWithName:@"WiredHeadset"
-                                           body:@[@{
+                                           body:@{
                                                @"isPlugged": @NO,
                                                @"hasMic": @NO,
                                                @"deviceName": @"",
-                                           }]];
+                                           }];
                     }
                     break;
                 case AVAudioSessionRouteChangeReasonCategoryChange:
