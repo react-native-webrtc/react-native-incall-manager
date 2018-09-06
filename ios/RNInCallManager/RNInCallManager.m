@@ -1248,6 +1248,11 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     NSLog(@"RNInCallManager.audioPlayerDecodeErrorDidOccur(): player=%@, error=%@", filename, error.localizedDescription);
 }
 
++ (BOOL)requiresMainQueueSetup
+{
+    return NO;
+}
+
 // --- Deprecated in iOS 8.0.
 //- (void)audioPlayerBeginInterruption:(AVAudioPlayer *)player
 //{
