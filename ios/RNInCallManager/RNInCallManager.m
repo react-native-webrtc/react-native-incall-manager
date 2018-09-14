@@ -236,7 +236,52 @@ RCT_EXPORT_METHOD(setKeepScreenOn:(BOOL)enable)
 
 RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
 {
-    NSLog(@"RNInCallManager.setSpeakerphoneOn(): ios doesn't support setSpeakerphoneOn()");
+    if(!enable){
+	    NSLog(@"Is on Earpiece ");
+	    @try {
+	        BOOL success;
+            NSError *error = nil;
+	        NSArray* routes = [_audioSession availableInputs];
+
+	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error];
+	        if (!success)  NSLog(@"category not set due to",error);
+	        success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
+	        if (!success)  NSLog(@"mode not set due to:%@",error);
+	        [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+	        if (!success)  NSLog(@"port override failed due to:%@",error);
+	        [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInReceiver error:&error];
+	        success = [_audioSession setActive:YES error:&error];
+            if (!success) NSLog(@"audio session activation failed: %@",error);
+            else NSLog(@"audioSession override active ");
+
+
+	    }@catch (NSException *e) {
+		    NSLog(@"thats", e.reason);
+        }
+    } else {
+
+        NSLog(@"on LoudSpeaker");
+	    @try {
+	        BOOL success;
+            NSError *error = nil;
+	        NSArray* routes = [_audioSession availableInputs];
+	        NSLog(@"avaliable routes ", routes[0]);
+	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
+				        withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
+					    error:nil];
+	        if (!success)  NSLog(@"category not set due to ",error);
+	        success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
+	        if (!success)  NSLog(@"mode not set due to:%@",error);
+	        [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInSpeaker error:&error];
+	        if (!success)  NSLog(@"port not ovveridden due to :%@",error);
+            success = [_audioSession setActive:YES error:&error];
+            if (!success) NSLog(@"audiosession not active due to : %@",error);
+            else NSLog(@"audioSession is active ");
+	    }@catch (NSException *e) {
+		    NSLog(@"thats", e.reason);
+        }
+    }
 }
 
 RCT_EXPORT_METHOD(setForceSpeakerphoneOn:(int)flag)
@@ -716,7 +761,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     NSLog(@"RNInCallManager.startProximitySensor()");
     // _currentDevice.proximityMonitoringEnabled = YES;
     _currentDevice.proximityMonitoringEnabled = NO;
-    
+
     // --- in case it didn't deallocate when ViewDidUnload
     [self stopObserve:_proximityObserver
                  name:UIDeviceProximityStateDidChangeNotification
