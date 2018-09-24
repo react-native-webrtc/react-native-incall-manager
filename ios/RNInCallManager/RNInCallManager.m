@@ -236,13 +236,13 @@ RCT_EXPORT_METHOD(setKeepScreenOn:(BOOL)enable)
 
 RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
 {
+     BOOL success;
+     NSError *error = nil;
+	 NSArray* routes = [_audioSession availableInputs];
+
     if(!enable){
 	    NSLog(@"Is on Earpiece ");
 	    @try {
-	        BOOL success;
-            NSError *error = nil;
-	        NSArray* routes = [_audioSession availableInputs];
-
 	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error];
 	        if (!success)  NSLog(@"category not set due to",error);
 	        success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
@@ -254,17 +254,13 @@ RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
             if (!success) NSLog(@"audio session activation failed: %@",error);
             else NSLog(@"audioSession override active ");
 
-
-	    }@catch (NSException *e) {
+        }@catch (NSException *e) {
 		    NSLog(@"thats", e.reason);
         }
     } else {
 
         NSLog(@"on LoudSpeaker");
 	    @try {
-	        BOOL success;
-            NSError *error = nil;
-	        NSArray* routes = [_audioSession availableInputs];
 	        NSLog(@"avaliable routes ", routes[0]);
 	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
 				        withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
