@@ -236,46 +236,45 @@ RCT_EXPORT_METHOD(setKeepScreenOn:(BOOL)enable)
 
 RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
 {
-     BOOL success;
-     NSError *error = nil;
-	 NSArray* routes = [_audioSession availableInputs];
+    BOOL success;
+    NSError *error = nil;
+    NSArray* routes = [_audioSession availableInputs];
 
     if(!enable){
-	    NSLog(@"Is on Earpiece ");
-	    @try {
-	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error];
-	        if (!success)  NSLog(@"category not set due to",error);
-	        success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
-	        if (!success)  NSLog(@"mode not set due to:%@",error);
-	        [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
-	        if (!success)  NSLog(@"port override failed due to:%@",error);
-	        [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInReceiver error:&error];
-	        success = [_audioSession setActive:YES error:&error];
-            if (!success) NSLog(@"audio session activation failed: %@",error);
-            else NSLog(@"audioSession override active ");
+        NSLog(@"Routing audio via Earpiece");
+        @try {
+            success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error];
+            if (!success)  NSLog(@"Cannot set category due to error: %@", error);
+            success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
+            if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
+            [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+            if (!success)  NSLog(@"Port override failed due to: %@", error);
+            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInReceiver error:&error];
+            success = [_audioSession setActive:YES error:&error];
+            if (!success) NSLog(@"Audio session activation failed: %@", error);
+            else NSLog(@"AudioSession override is successful ");
 
-        }@catch (NSException *e) {
-		    NSLog(@"thats", e.reason);
+        } @catch (NSException *e) {
+            NSLog(@"Error occurred while routing audio via Earpiece", e.reason);
         }
     } else {
-
-        NSLog(@"on LoudSpeaker");
-	    @try {
-	        NSLog(@"avaliable routes ", routes[0]);
-	        success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
-				        withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
-					    error:nil];
-	        if (!success)  NSLog(@"category not set due to ",error);
-	        success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
-	        if (!success)  NSLog(@"mode not set due to:%@",error);
-	        [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
-            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInSpeaker error:&error];
-	        if (!success)  NSLog(@"port not ovveridden due to :%@",error);
+        NSLog(@"Routing audio via Loudspeaker");
+        @try {
+            NSLog(@"Available routes", routes[0]);
+            success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
+                        withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
+                        error:nil];
+            if (!success)  NSLog(@"Cannot set category due to error: %@", error);
+            success = [_audioSession setMode:AVAudioSessionModeVoiceChat error: &error];
+            if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
+            [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+            [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInSpeaker error: &error];
+            if (!success)  NSLog(@"Port override failed due to: %@", error);
             success = [_audioSession setActive:YES error:&error];
-            if (!success) NSLog(@"audiosession not active due to : %@",error);
-            else NSLog(@"audioSession is active ");
-	    }@catch (NSException *e) {
-		    NSLog(@"thats", e.reason);
+            if (!success) NSLog(@"Audio session activation failed: %@", error);
+            else NSLog(@"AudioSession override is successful ");
+        } @catch (NSException *e) {
+            NSLog(@"Error occurred while routing audio via Loudspeaker", e.reason);
         }
     }
 }
