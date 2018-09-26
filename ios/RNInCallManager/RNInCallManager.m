@@ -251,7 +251,7 @@ RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
             if (!success)  NSLog(@"Port override failed due to: %@", error);
             [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInReceiver error:&error];
             success = [_audioSession setActive:YES error:&error];
-            if (!success) NSLog(@"Audio session activation failed: %@", error);
+            if (!success) NSLog(@"Audio session override failed: %@", error);
             else NSLog(@"AudioSession override is successful ");
 
         } @catch (NSException *e) {
@@ -271,7 +271,7 @@ RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
             [_audioSession overrideOutputAudioPort:AVAudioSessionPortBuiltInSpeaker error: &error];
             if (!success)  NSLog(@"Port override failed due to: %@", error);
             success = [_audioSession setActive:YES error:&error];
-            if (!success) NSLog(@"Audio session activation failed: %@", error);
+            if (!success) NSLog(@"Audio session override failed: %@", error);
             else NSLog(@"AudioSession override is successful ");
         } @catch (NSException *e) {
             NSLog(@"Error occurred while routing audio via Loudspeaker", e.reason);
