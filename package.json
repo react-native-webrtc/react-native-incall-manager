@@ -1,6 +1,6 @@
 {
   "name": "react-native-incall-manager",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "Handling media-routes/sensors/events during a audio/video chat on React Native",
   "main": "index.js",
   "scripts": {
@@ -29,5 +29,8 @@
   "homepage": "https://github.com/zxcpoiu/react-native-incall-manager#readme",
   "peerDependencies": {
     "react-native": ">=0.40.0"
+  },
+  "publishConfig": {
+    "registry": "https://nexus.causecode.com/repository/npm-private/"
   }
 }
