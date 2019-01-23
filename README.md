@@ -23,7 +23,7 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
 ## TODO / Contribution Wanted:  
   
 * Make operations run on main thread. ( iOS/Android )  
-* Fix iOS audio shared instance singleton conflit with internal webrtc.  
+* Fix iOS audio shared instance singleton conflict with internal webrtc.  
 * Detect hardware button press event and react to it.  
   ex: press bluetooth button, send event to JS to answer/hangup.  
   ex: press power button to mute incoming ringtone.  
@@ -149,7 +149,7 @@ On ios, we only support mp3 files currently.
 
 ## Usage:
 
-This module implement a basic handle logic automatically, just:
+This module implements a basic handle logic automatically, just:
 
 ```javascript
 import InCallManager from 'react-native-incall-manager';
@@ -290,13 +290,13 @@ Checkout this awesome project: [react-native-android-permissions](https://github
 **On stop:**  
 
 * Set KeepScreenOn flag = false, remote event listeners, restore original user settings.
-* Optional play busytone
+* Optionally play busytone
 
 ## Custom Behavior:  
 
-You can custom behavior use API/events exposed by this module. see `API` section.
+You can customize behavior using API/events exposed by this module. See `API` section.
 
-Note: ios only supports `auto` currently.
+Note: iOS only supports `auto` currently.
 
 ## API:
 
@@ -333,8 +333,8 @@ Note: ios only supports `auto` currently.
 | 'MediaButton' | :smile: | :rage: | when external device controler pressed button. see [android doc](http://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON) <br>data: `{'eventText': string, 'eventCode': number }` |
 | 'onAudioFocusChange' | :smile: | :rage: | see [andriod doc](http://developer.android.com/reference/android/media/AudioManager.OnAudioFocusChangeListener.html#onAudioFocusChange(int)) <br>data: `{'eventText': string, 'eventCode': number }` |
 
-**NOTE: platform OS always has the final decision, so some toggle api may not work in some case
-be care when customize your own behavior**
+**NOTE: platform OS always has the final decision, so some toggle API may not work in some cases
+be carefull when customize your own behavior**
 
 ## LICENSE:
 
