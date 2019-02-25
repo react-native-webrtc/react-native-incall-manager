@@ -114,6 +114,14 @@ class InCallManager {
         _InCallManager.stopRingback();
     }
 
+    stopProximitySensor() {
+        _InCallManager.stopProximitySensor();
+    }
+
+    startProximitySensor() {
+        _InCallManager.startProximitySensor();
+    }
+
     async checkRecordPermission() {
         // --- on android which api < 23, it will always be "granted"
         let result = await _InCallManager.checkRecordPermission();

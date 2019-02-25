@@ -422,8 +422,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         sendEvent("Proximity", data);
     }
 
-
-    private void startProximitySensor() {
+    @ReactMethod
+    public void startProximitySensor() {
         if (!proximityManager.isProximitySupported()) {
             Log.d(TAG, "Proximity Sensor is not supported.");
             return;
@@ -441,7 +441,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         isProximityRegistered = true;
     }
 
-    private void stopProximitySensor() {
+    @ReactMethod
+    public void stopProximitySensor() {
         if (!proximityManager.isProximitySupported()) {
             Log.d(TAG, "Proximity Sensor is not supported.");
             return;
