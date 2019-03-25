@@ -18,7 +18,6 @@ The purpose of this module is to handle actions/events during a phone call (audi
 Basically, it is a telecommunication module which handles most of requirements when making/receiving/talking with a call.  
   
 This module is desinged to work with [react-native-webrtc](https://github.com/oney/react-native-webrtc)  
-you can find demo here: https://github.com/oney/RCTWebRTCDemo  
   
 ## TODO / Contribution Wanted:  
   
@@ -32,16 +31,6 @@ you can find demo here: https://github.com/oney/RCTWebRTCDemo
   
 ## Installation:
 
-
-#### BREAKING NOTE:
-
-* Since `2.1.0`, you should use `RN 40+` and upgrade your xcode to support `swift 3`.  
-  after upgrading xcode, `Edit -> Convert -> To Current Swift Syntax` to invoke `Swift Migration Assistant`  
-  see [Migrating to Swift 2.3 or Swift 3 from Swift 2.2](https://swift.org/migration-guide/)
- 
-* For old RN versions (RN < 0.40) please use version `1.5.4` ( Swift 2.2~2.3 )
-
-
 **From npm package**: `npm install react-native-incall-manager`  
 **From git package**: `npm install git://github.com/zxcpoiu/react-native-incall-manager.git`  
 
@@ -54,7 +43,7 @@ After install, you can use `rnpm` (`npm install rnpm -g`) to link android.
 use `react-native link react-native-incall-manager` to link or manually if you like.
 
 We use android support library v4 to check/request permissions.  
-You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.  
+You should add `compile "com.android.support:support-v4:$YOUR_VERSION"` in `$YOUR_PROJECT/android/app/build.gradle` dependencies on android.  
 
 #### Manually Linking
 
@@ -340,6 +329,5 @@ be carefull when customize your own behavior**
 
 **[ISC License](https://opensource.org/licenses/ISC)** ( functionality equivalent to **MIT License** )
 
-## Contributing:
-
-I'm not expert neither on ios nor android, any suggestions, pull request, corrections are really appreciated and welcome.
+## Original Author:
+[![zxcpoiu](https://github.com/zxcpoiu.png)](https://github.com/zxcpoiu)
