@@ -61,6 +61,11 @@
     NSString *_media;
 }
 
++ (BOOL)requiresMainQueueSetup
+{
+    return NO;
+}
+
 RCT_EXPORT_MODULE(InCallManager)
 
 - (instancetype)init
