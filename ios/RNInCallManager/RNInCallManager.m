@@ -298,12 +298,6 @@ RCT_EXPORT_METHOD(setMicrophoneMute:(BOOL)enable)
 
 RCT_EXPORT_METHOD(startRingback:(NSString *)ringbackUriType)
 {
-    NSLog(@"RNInCallManager.startRingback(): ringbackUriType: %d", ringbackUriType);
-    [self startRingback:ringbackUriType];
-}
-
-- (void)startRingback:(NSString *)_ringbackUriType
-{
     // you may rejected by apple when publish app if you use system sound instead of bundled sound.
     NSLog(@"RNInCallManager.startRingback(): type=%@", _ringbackUriType);
 
