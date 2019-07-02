@@ -1,6 +1,6 @@
 {
   "name": "react-native-incall-manager",
-  "version": "3.2.3",
+  "version": "3.2.4",
   "description": "Handling media-routes/sensors/events during a audio/video chat on React Native",
   "main": "index.js",
   "scripts": {
