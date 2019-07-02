@@ -1489,9 +1489,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             promise.reject(new Exception("_requestPermission(): currentActivity is not attached"));
             return;
         }
-        int requestPermissionCode = getRandomInteger(1, 99999999);
+        int requestPermissionCode = getRandomInteger(1, 65535);
         while (mRequestPermissionCodePromises.get(requestPermissionCode, null) != null) {
-            requestPermissionCode = getRandomInteger(1, 99999999);
+            requestPermissionCode = getRandomInteger(1, 65535);
         }
         mRequestPermissionCodePromises.put(requestPermissionCode, promise);
         mRequestPermissionCodeTargetPermission.put(requestPermissionCode, targetPermission);
