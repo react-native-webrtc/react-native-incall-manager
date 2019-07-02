@@ -296,7 +296,7 @@ RCT_EXPORT_METHOD(setMicrophoneMute:(BOOL)enable)
     NSLog(@"RNInCallManager.setMicrophoneMute(): ios doesn't support setMicrophoneMute()");
 }
 
-- (void)startRingback:(NSString *)_ringbackUriType
+RCT_EXPORT_METHOD(startRingback:(NSString *)_ringbackUriType)
 {
     // you may rejected by apple when publish app if you use system sound instead of bundled sound.
     NSLog(@"RNInCallManager.startRingback(): type=%@", _ringbackUriType);

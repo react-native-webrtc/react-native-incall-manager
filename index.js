@@ -110,6 +110,12 @@ class InCallManager {
         _InCallManager.stopRingtone();
     }
 
+    startRingback(ringback) {
+        ringback = (typeof ringback === 'string') ? ringback : "_DTMF_";
+
+        _InCallManager.startRingback(ringback);
+    }
+
     stopRingback() {
         _InCallManager.stopRingback();
     }

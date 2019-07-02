@@ -793,6 +793,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
      * This is part of start() process. 
      * ringbackUriType must not empty. empty means do not play.
      */
+    @ReactMethod
     public void startRingback(final String ringbackUriType) {
         if (ringbackUriType.isEmpty()) {
             return;
