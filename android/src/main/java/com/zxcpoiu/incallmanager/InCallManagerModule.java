@@ -87,7 +87,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private boolean origIsMicrophoneMute = false;
     private int origAudioMode = AudioManager.MODE_INVALID;
     private boolean defaultSpeakerOn = false;
-    private int defaultAudioMode = AudioManager.MODE_IN_COMMUNICATION;
+    private int defaultAudioMode = AudioManager.MODE_IN_CALL;
     private int forceSpeakerOn = 0;
     private boolean automatic = true;
     private boolean isProximityRegistered = false;
@@ -1574,6 +1574,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @Override
     public void onHostResume() {
         Log.d(TAG, "onResume()");
+        setAudioDeviceInternal(getPreferredAudioDevice());
         //resume();
     }
 
