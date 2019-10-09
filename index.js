@@ -110,6 +110,12 @@ class InCallManager {
         _InCallManager.stopRingtone();
     }
 
+    startRingback(ringback) {
+        ringback = (typeof ringback === 'string') ? ringback : "_DTMF_";
+
+        _InCallManager.startRingback(ringback);
+    }
+
     stopRingback() {
         _InCallManager.stopRingback();
     }
@@ -144,7 +150,7 @@ class InCallManager {
 
     pokeScreen(_timeout) {
         if (Platform.OS === 'android') {
-            let timeout = (typeof _timeout === "number" && _timeout > 0) ? _timeout : 0;
+            let timeout = (typeof _timeout === "number" && _timeout > 0) ? _timeout : 3000; // --- default 3000 ms
             _InCallManager.pokeScreen(timeout);
         } else {
             console.log("ios doesn't support pokeScreen()");
@@ -170,6 +176,11 @@ class InCallManager {
                 return null;
             }
         }
+    }
+
+    async chooseAudioRoute(route) {
+        let result = await _InCallManager.chooseAudioRoute(route);
+        return result;
     }
 }
 
