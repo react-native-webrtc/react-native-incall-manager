@@ -278,7 +278,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if (ACTION_HEADSET_PLUG.equals(intent.getAction())) {
-                        hasWiredHeadset = true;
+                        hasWiredHeadset = intent.getIntExtra("state", 0) == 1;
                         updateAudioRoute();
                         String deviceName = intent.getStringExtra("name");
                         if (deviceName == null) {
