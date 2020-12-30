@@ -293,6 +293,11 @@ RCT_EXPORT_METHOD(setForceSpeakerphoneOn:(int)flag)
 
 RCT_EXPORT_METHOD(setMicrophoneMute:(BOOL)enable)
 {
+    if (enable == true) {
+        [self audioSessionSetActive:NO options:0 callerMemo:NSStringFromSelector(_cmd)];
+    } else {
+        [self audioSessionSetActive:YES options:0 callerMemo:NSStringFromSelector(_cmd)];
+    }
     NSLog(@"RNInCallManager.setMicrophoneMute(): ios doesn't support setMicrophoneMute()");
 }
 
