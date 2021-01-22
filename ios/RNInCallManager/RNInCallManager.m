@@ -56,8 +56,6 @@
     NSString *_origAudioMode;
     BOOL _audioSessionInitialized;
     int _forceSpeakerOn;
-    NSString *_recordPermission;
-    NSString *_cameraPermission;
     NSString *_media;
 }
 
@@ -106,8 +104,6 @@ RCT_EXPORT_MODULE(InCallManager)
         _origAudioMode = nil;
         _audioSessionInitialized = NO;
         _forceSpeakerOn = 0;
-        _recordPermission = nil;
-        _cameraPermission = nil;
         _media = @"audio";
 
         NSLog(@"RNInCallManager.init(): initialized");
@@ -132,10 +128,6 @@ RCT_EXPORT_METHOD(start:(NSString *)mediaType
         ringbackUriType:(NSString *)ringbackUriType)
 {
     if (_audioSessionInitialized) {
-        return;
-    }
-    if (![_recordPermission isEqualToString:@"granted"]) {
-        NSLog(@"RNInCallManager.start(): recordPermission should be granted. state: %@", _recordPermission);
         return;
     }
     _media = mediaType;
@@ -414,102 +406,6 @@ RCT_EXPORT_METHOD(stopRingtone)
                             options:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
                          callerMemo:NSStringFromSelector(_cmd)];
     }
-}
-
-- (void)_checkRecordPermission
-{
-    NSString *recordPermission = @"unsupported";
-    switch ([_audioSession recordPermission]) {
-        case AVAudioSessionRecordPermissionGranted:
-            recordPermission = @"granted";
-            break;
-        case AVAudioSessionRecordPermissionDenied:
-            recordPermission = @"denied";
-            break;
-        case AVAudioSessionRecordPermissionUndetermined:
-            recordPermission = @"undetermined";
-            break;
-        default:
-            recordPermission = @"unknow";
-            break;
-    }
-    _recordPermission = recordPermission;
-    NSLog(@"RNInCallManager._checkRecordPermission(): recordPermission=%@", _recordPermission);
-}
-
-RCT_EXPORT_METHOD(checkRecordPermission:(RCTPromiseResolveBlock)resolve
-                                 reject:(RCTPromiseRejectBlock)reject)
-{
-    [self _checkRecordPermission];
-    if (_recordPermission != nil) {
-        resolve(_recordPermission);
-    } else {
-        reject(@"error_code", @"error message", RCTErrorWithMessage(@"checkRecordPermission is nil"));
-    }
-}
-
-RCT_EXPORT_METHOD(requestRecordPermission:(RCTPromiseResolveBlock)resolve
-                                   reject:(RCTPromiseRejectBlock)reject)
-{
-    NSLog(@"RNInCallManager.requestRecordPermission(): waiting for user confirmation...");
-    [_audioSession requestRecordPermission:^(BOOL granted) {
-        if (granted) {
-            self->_recordPermission = @"granted";
-        } else {
-            self->_recordPermission = @"denied";
-        }
-        NSLog(@"RNInCallManager.requestRecordPermission(): %@", self->_recordPermission);
-        resolve(self->_recordPermission);
-    }];
-}
-
-- (NSString *)_checkMediaPermission:(NSString *)targetMediaType
-{
-    switch ([AVCaptureDevice authorizationStatusForMediaType:targetMediaType]) {
-        case AVAuthorizationStatusAuthorized:
-            return @"granted";
-        case AVAuthorizationStatusDenied:
-            return @"denied";
-        case AVAuthorizationStatusNotDetermined:
-            return @"undetermined";
-        case AVAuthorizationStatusRestricted:
-            return @"restricted";
-        default:
-            return @"unknow";
-    }
-}
-
-- (void)_checkCameraPermission
-{
-    _cameraPermission = [self _checkMediaPermission:AVMediaTypeVideo];
-    NSLog(@"RNInCallManager._checkCameraPermission(): using iOS7 api. cameraPermission=%@", _cameraPermission);
-}
-
-RCT_EXPORT_METHOD(checkCameraPermission:(RCTPromiseResolveBlock)resolve
-                                 reject:(RCTPromiseRejectBlock)reject)
-{
-    [self _checkCameraPermission];
-    if (_cameraPermission != nil) {
-        resolve(_cameraPermission);
-    } else {
-        reject(@"error_code", @"error message", RCTErrorWithMessage(@"checkCameraPermission is nil"));
-    }
-}
-
-RCT_EXPORT_METHOD(requestCameraPermission:(RCTPromiseResolveBlock)resolve
-                                   reject:(RCTPromiseRejectBlock)reject)
-{
-    NSLog(@"RNInCallManager.requestCameraPermission(): waiting for user confirmation...");
-    [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
-                             completionHandler:^(BOOL granted) {
-        if (granted) {
-            self->_cameraPermission = @"granted";
-        } else {
-            self->_cameraPermission = @"denied";
-        }
-        NSLog(@"RNInCallManager.requestCameraPermission(): %@", self->_cameraPermission);
-        resolve(self->_cameraPermission);
-    }];
 }
 
 RCT_EXPORT_METHOD(getAudioUriJS:(NSString *)audioType
