@@ -66,6 +66,7 @@
     return NO;
 }
 
+// This is where the module is being exported
 RCT_EXPORT_MODULE(InCallManager)
 
 - (instancetype)init
@@ -127,6 +128,7 @@ RCT_EXPORT_MODULE(InCallManager)
              @"WiredHeadset"];
 }
 
+// START METHOD *STUDY
 RCT_EXPORT_METHOD(start:(NSString *)mediaType
                    auto:(BOOL)_auto
         ringbackUriType:(NSString *)ringbackUriType)
@@ -164,14 +166,15 @@ RCT_EXPORT_METHOD(start:(NSString *)mediaType
         [self startRingback:ringbackUriType];
     }
 
-    if ([_media isEqualToString:@"audio"]) {
-        [self startProximitySensor];
-    }
+//    if ([_media isEqualToString:@"audio"]) {
+//        [self startProximitySensor];
+//    }
     [self setKeepScreenOn:YES];
     _audioSessionInitialized = YES;
     //self.debugAudioSession()
 }
 
+// STOP METHOD *STUDY
 RCT_EXPORT_METHOD(stop:(NSString *)busytoneUriType)
 {
     if (!_audioSessionInitialized) {
@@ -239,6 +242,7 @@ RCT_EXPORT_METHOD(setKeepScreenOn:(BOOL)enable)
     });
 }
 
+// SET SPEAKER PHONE ON METHOD *STUDY
 RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
 {
     BOOL success;
@@ -283,7 +287,7 @@ RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
         }
     }
 }
-
+// SET FORCE SPEAKE PHONE ON METHOD *STUDY
 RCT_EXPORT_METHOD(setForceSpeakerphoneOn:(int)flag)
 {
     _forceSpeakerOn = flag;
@@ -534,6 +538,7 @@ RCT_EXPORT_METHOD(getAudioUriJS:(NSString *)audioType
     reject(@"error_code", @"getAudioUriJS() failed", RCTErrorWithMessage(@"getAudioUriJS() failed"));
 }
 
+// WIRED HEADSET METHOD *STUDY
 RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                                       reject:(RCTPromiseRejectBlock)reject)
 {
