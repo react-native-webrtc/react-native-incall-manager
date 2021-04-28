@@ -128,6 +128,8 @@ RCT_EXPORT_MODULE(InCallManager)
              @"WiredHeadset"];
 }
 
+
+
 // START METHOD *STUDY
 RCT_EXPORT_METHOD(start:(NSString *)mediaType
                    auto:(BOOL)_auto
@@ -202,6 +204,8 @@ RCT_EXPORT_METHOD(stop:(NSString *)busytoneUriType)
         _audioSessionInitialized = NO;
     }
 }
+
+
 
 RCT_EXPORT_METHOD(turnScreenOn)
 {
@@ -721,6 +725,8 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     }
 }
 
+// Function to set the session active
+// param {bool}
 - (void)audioSessionSetActive:(BOOL)audioActive
                    options:(AVAudioSessionSetActiveOptions)options
                    callerMemo:(NSString *)callerMemo
