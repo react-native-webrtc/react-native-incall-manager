@@ -951,7 +951,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     }
 
                     if (audioManagerActivated) {
-                        stop();
+                        InCallManagerModule.this.stop();
                     }
 
                     wakeLockUtils.acquirePartialWakeLock();
