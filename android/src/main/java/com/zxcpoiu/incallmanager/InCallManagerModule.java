@@ -31,6 +31,7 @@ import android.net.Uri;
 import android.os.PowerManager;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
@@ -919,6 +920,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             @Override
             public void run() {
                 try {
+                    Looper.prepare();
+
                     Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
                     if (mRingtone != null) {
                         if (mRingtone.isPlaying()) {
@@ -978,9 +981,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                             }
                         }, seconds * 1000);
                     }
+
+                    Looper.loop();
                 } catch(Exception e) {
                     wakeLockUtils.releasePartialWakeLock();
-                    Log.d(TAG, "startRingtone() failed");
+                    Log.e(TAG, "startRingtone() failed", e);
                 }
             }
         };
