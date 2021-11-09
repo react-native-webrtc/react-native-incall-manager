@@ -922,88 +922,102 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     @ReactMethod
     public void startRingtone(final String ringtoneUriType, final int seconds) {
-        try {
-            Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
-            if (mRingtone != null) {
-                if (mRingtone.isPlaying()) {
-                    Log.d(TAG, "startRingtone(): is already playing");
-                    return;
-                } else {
-                    stopRingtone(); // --- use brandnew instance
-                }
-            }
-
-            //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
-            //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
-            if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
-                Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
-                return;
-            }
-
-            // --- there is no _DTMF_ option in startRingtone()
-            Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
-            if (ringtoneUri == null) {
-                Log.d(TAG, "startRingtone(): no available media");
-                return;    
-            }
-
-            if (audioManagerActivated) {
-                stop();
-            }
-
-            wakeLockUtils.acquirePartialWakeLock();
-
-            storeOriginalAudioSetup();
-            Map data = new HashMap<String, Object>();
-            mRingtone = new myMediaPlayer();
-            data.put("name", "mRingtone");
-            data.put("sourceUri", ringtoneUri);
-            data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_RING);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", 0);
-            data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
-            */
-            setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
-            mRingtone.startPlay(data);
-
-            if (seconds > 0) {
-                mRingtoneCountDownHandler = new Handler();
-                mRingtoneCountDownHandler.postDelayed(new Runnable() {
-                    public void run() {
-                        try {
-                            Log.d(TAG, String.format("mRingtoneCountDownHandler.stopRingtone() timeout after %d seconds", seconds));
-                            stopRingtone();
-                        } catch(Exception e) {
-                            Log.d(TAG, "mRingtoneCountDownHandler.stopRingtone() failed.");
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
+                    if (mRingtone != null) {
+                        if (mRingtone.isPlaying()) {
+                            Log.d(TAG, "startRingtone(): is already playing");
+                            return;
+                        } else {
+                            stopRingtone(); // --- use brandnew instance
                         }
                     }
-                }, seconds * 1000);
+
+                    //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
+                    //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
+                    if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
+                        Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
+                        return;
+                    }
+
+                    // --- there is no _DTMF_ option in startRingtone()
+                    Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
+                    if (ringtoneUri == null) {
+                        Log.d(TAG, "startRingtone(): no available media");
+                        return;
+                    }
+
+                    if (audioManagerActivated) {
+                        InCallManagerModule.this.stop();
+                    }
+
+                    wakeLockUtils.acquirePartialWakeLock();
+
+                    storeOriginalAudioSetup();
+                    Map data = new HashMap<String, Object>();
+                    mRingtone = new myMediaPlayer();
+                    data.put("name", "mRingtone");
+                    data.put("sourceUri", ringtoneUri);
+                    data.put("setLooping", true);
+                    data.put("audioStream", AudioManager.STREAM_RING);
+                    /*
+                    TODO: for API 21
+                    data.put("audioFlag", 0);
+                    data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
+                    data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
+                    */
+                    setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
+                    mRingtone.startPlay(data);
+
+                    if (seconds > 0) {
+                        mRingtoneCountDownHandler = new Handler();
+                        mRingtoneCountDownHandler.postDelayed(new Runnable() {
+                            public void run() {
+                                try {
+                                    Log.d(TAG, String.format("mRingtoneCountDownHandler.stopRingtone() timeout after %d seconds", seconds));
+                                    stopRingtone();
+                                } catch(Exception e) {
+                                    Log.d(TAG, "mRingtoneCountDownHandler.stopRingtone() failed.");
+                                }
+                            }
+                        }, seconds * 1000);
+                    }
+                } catch(Exception e) {
+                    wakeLockUtils.releasePartialWakeLock();
+                    Log.d(TAG, "startRingtone() failed");
+                }
             }
-        } catch(Exception e) {
-            wakeLockUtils.releasePartialWakeLock();
-            Log.d(TAG, "startRingtone() failed");
-        }   
+        };
+
+        thread.start();
     }
 
     @ReactMethod
     public void stopRingtone() {
-        try {
-            if (mRingtone != null) {
-                mRingtone.stopPlay();
-                mRingtone = null;
-                restoreOriginalAudioSetup();
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    if (mRingtone != null) {
+                        mRingtone.stopPlay();
+                        mRingtone = null;
+                        restoreOriginalAudioSetup();
+                    }
+                    if (mRingtoneCountDownHandler != null) {
+                        mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
+                        mRingtoneCountDownHandler = null;
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "stopRingtone() failed");
+                }
+                wakeLockUtils.releasePartialWakeLock();
             }
-            if (mRingtoneCountDownHandler != null) {
-                mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
-                mRingtoneCountDownHandler = null;
-            }
-        } catch(Exception e) {
-            Log.d(TAG, "stopRingtone() failed");
-        }   
-        wakeLockUtils.releasePartialWakeLock();
+        };
+
+        thread.start();
     }
 
     private void setMediaPlayerEvents(MediaPlayer mp, final String name) {
@@ -1900,3 +1914,4 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         return newAudioDevice;
     }
 }
+
