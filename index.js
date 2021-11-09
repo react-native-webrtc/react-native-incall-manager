@@ -8,19 +8,11 @@ import {
 class InCallManager {
     constructor() {
         this.vibrate = false;
-        this.recordPermission = 'unknow';
-        this.cameraPermission = 'unknow';
         this.audioUriMap = {
             ringtone: { _BUNDLE_: null, _DEFAULT_: null},
             ringback: { _BUNDLE_: null, _DEFAULT_: null},
             busytone: { _BUNDLE_: null, _DEFAULT_: null},
         };
-        this.checkRecordPermission = this.checkRecordPermission.bind(this);
-        this.requestRecordPermission = this.requestRecordPermission.bind(this);
-        this.checkCameraPermission = this.checkCameraPermission.bind(this);
-        this.requestCameraPermission = this.requestCameraPermission.bind(this);
-        this.checkRecordPermission();
-        this.checkCameraPermission();
     }
 
     start(setup) {
@@ -118,34 +110,6 @@ class InCallManager {
 
     stopRingback() {
         _InCallManager.stopRingback();
-    }
-
-    async checkRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.checkRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
-    async requestRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.requestRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
-    async checkCameraPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.checkCameraPermission();
-        this.cameraPermission = result;
-        return result;
-    }
-
-    async requestCameraPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.requestCameraPermission();
-        this.cameraPermission = result;
-        return result;
     }
 
     pokeScreen(_timeout) {

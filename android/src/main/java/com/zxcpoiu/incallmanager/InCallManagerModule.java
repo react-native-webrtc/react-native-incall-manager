@@ -22,7 +22,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
-import android.Manifest.permission;
 //import android.media.AudioAttributes; // --- for API 21+
 import android.media.AudioManager;
 import android.media.AudioDeviceInfo;
@@ -69,8 +68,6 @@ import com.zxcpoiu.incallmanager.AppRTC.AppRTCBluetoothManager;
 public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     private static final String REACT_NATIVE_MODULE_NAME = "InCallManager";
     private static final String TAG = REACT_NATIVE_MODULE_NAME;
-    private static SparseArray<Promise> mRequestPermissionCodePromises;
-    private static SparseArray<String> mRequestPermissionCodeTargetPermission;
     private String mPackageName = "com.zxcpoiu.incallmanager";
 
     // --- Screen Manager
@@ -112,8 +109,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private MyPlayerInterface mBusytone;
     private Handler mRingtoneCountDownHandler;
     private String media = "audio";
-    private static String recordPermission = "unknow";
-    private static String cameraPermission = "unknow";
 
     private static final String SPEAKERPHONE_AUTO = "auto";
     private static final String SPEAKERPHONE_TRUE = "true";
@@ -196,8 +191,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         audioUriMap.put("bundleRingtoneUri", bundleRingtoneUri);
         audioUriMap.put("bundleRingbackUri", bundleRingbackUri);
         audioUriMap.put("bundleBusytoneUri", bundleBusytoneUri);
-        mRequestPermissionCodePromises = new SparseArray<Promise>();
-        mRequestPermissionCodeTargetPermission = new SparseArray<String>();
         mOnFocusChangeListener = new OnFocusChangeListener();
         bluetoothManager = AppRTCBluetoothManager.create(reactContext, this);
         proximityManager = InCallProximityManager.create(reactContext, this);
@@ -1407,79 +1400,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 // ===== Internal Classes End =====
 
-//  ===== Permission Start =====
-    @ReactMethod
-    public void checkRecordPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.checkRecordPermission(): enter");
-        _checkRecordPermission();
-        if (recordPermission.equals("unknow")) {
-            Log.d(TAG, "RNInCallManager.checkRecordPermission(): failed");
-            promise.reject(new Exception("checkRecordPermission failed"));
-        } else {
-            promise.resolve(recordPermission);
-        }
-    }
-
-    @ReactMethod
-    public void checkCameraPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.checkCameraPermission(): enter");
-        _checkCameraPermission();
-        if (cameraPermission.equals("unknow")) {
-            Log.d(TAG, "RNInCallManager.checkCameraPermission(): failed");
-            promise.reject(new Exception("checkCameraPermission failed"));
-        } else {
-            promise.resolve(cameraPermission);
-        }
-    }
-
-    private void _checkRecordPermission() {
-        recordPermission = _checkPermission(permission.RECORD_AUDIO);
-        Log.d(TAG, String.format("RNInCallManager.checkRecordPermission(): recordPermission=%s", recordPermission));
-    }
-
-    private void _checkCameraPermission() {
-        cameraPermission = _checkPermission(permission.CAMERA);
-        Log.d(TAG, String.format("RNInCallManager.checkCameraPermission(): cameraPermission=%s", cameraPermission));
-    }
-
-    private String _checkPermission(String targetPermission) {
-        try {
-            ReactContext reactContext = getReactApplicationContext();
-            if (ContextCompat.checkSelfPermission(reactContext, targetPermission) == PackageManager.PERMISSION_GRANTED) {
-                return "granted";
-            } else {
-                return "denied";
-            }
-        } catch (Exception e) {
-            Log.d(TAG, "_checkPermission() catch");
-            return "denied";
-        }
-    }
-
-    @ReactMethod
-    public void requestRecordPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.requestRecordPermission(): enter");
-        _checkRecordPermission();
-        if (!recordPermission.equals("granted")) {
-            _requestPermission(permission.RECORD_AUDIO, promise);
-        } else {
-            // --- already granted
-            promise.resolve(recordPermission);
-        }
-    }
-
-    @ReactMethod
-    public void requestCameraPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.requestCameraPermission(): enter");
-        _checkCameraPermission();
-        if (!cameraPermission.equals("granted")) {
-            _requestPermission(permission.CAMERA, promise);
-        } else {
-            // --- already granted
-            promise.resolve(cameraPermission);
-        }
-    }
-
     @ReactMethod
     public void chooseAudioRoute(String audioRoute, Promise promise) {
         Log.d(TAG, "RNInCallManager.chooseAudioRoute(): user choose audioDevice = " + audioRoute);
@@ -1496,33 +1416,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         promise.resolve(getAudioDeviceStatusMap());
     }
 
-    private void _requestPermission(String targetPermission, Promise promise) {
-        Activity currentActivity = getCurrentActivity();
-        if (currentActivity == null) {
-            Log.d(TAG, String.format("RNInCallManager._requestPermission(): ReactContext doesn't hava any Activity attached when requesting %s", targetPermission));
-            promise.reject(new Exception("_requestPermission(): currentActivity is not attached"));
-            return;
-        }
-        int requestPermissionCode = getRandomInteger(1, 65535);
-        while (mRequestPermissionCodePromises.get(requestPermissionCode, null) != null) {
-            requestPermissionCode = getRandomInteger(1, 65535);
-        }
-        mRequestPermissionCodePromises.put(requestPermissionCode, promise);
-        mRequestPermissionCodeTargetPermission.put(requestPermissionCode, targetPermission);
-        /*
-        if (ActivityCompat.shouldShowRequestPermissionRationale(currentActivity, permission.RECORD_AUDIO)) {
-            showMessageOKCancel("You need to allow access to microphone for making call", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    ActivityCompat.requestPermissions(currentActivity, new String[] {permission.RECORD_AUDIO}, requestPermissionCode);
-                }
-            });
-            return;
-        }
-        */
-        ActivityCompat.requestPermissions(currentActivity, new String[] {targetPermission}, requestPermissionCode);
-    }
-
     private static int getRandomInteger(int min, int max) {
         if (min >= max) {
             throw new IllegalArgumentException("max must be greater than min");
@@ -1530,47 +1423,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         Random random = new Random();
         return random.nextInt((max - min) + 1) + min;
     }
-
-    protected static void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        Log.d(TAG, "RNInCallManager.onRequestPermissionsResult(): enter");
-        Promise promise = mRequestPermissionCodePromises.get(requestCode, null);
-        String targetPermission = mRequestPermissionCodeTargetPermission.get(requestCode, null);
-        mRequestPermissionCodePromises.delete(requestCode);
-        mRequestPermissionCodeTargetPermission.delete(requestCode);
-        if (promise != null && targetPermission != null) {
-
-            Map<String, Integer> permissionResultMap = new HashMap<String, Integer>();
-
-            for (int i = 0; i < permissions.length; i++) {
-                permissionResultMap.put(permissions[i], grantResults[i]);
-            }
-
-            if (!permissionResultMap.containsKey(targetPermission)) {
-                Log.wtf(TAG, String.format("RNInCallManager.onRequestPermissionsResult(): requested permission %s but did not appear", targetPermission));
-                promise.reject(String.format("%s_PERMISSION_NOT_FOUND", targetPermission), String.format("requested permission %s but did not appear", targetPermission));
-                return;
-            }
-
-            String _requestPermissionResult = "unknow";
-            if (permissionResultMap.get(targetPermission) == PackageManager.PERMISSION_GRANTED) {
-                _requestPermissionResult = "granted";
-            } else {
-                _requestPermissionResult = "denied";
-            }
-
-            if (targetPermission.equals(permission.RECORD_AUDIO)) {
-                recordPermission = _requestPermissionResult;
-            } else if (targetPermission.equals(permission.CAMERA)) {
-                cameraPermission = _requestPermissionResult;
-            }
-            promise.resolve(_requestPermissionResult);
-        } else {
-            //super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-            Log.wtf(TAG, "RNInCallManager.onRequestPermissionsResult(): request code not found");
-            promise.reject("PERMISSION_REQUEST_CODE_NOT_FOUND", "request code not found");
-        }
-    }
-//  ===== Permission End =====
 
     private void pause() {
         if (audioManagerActivated) {
