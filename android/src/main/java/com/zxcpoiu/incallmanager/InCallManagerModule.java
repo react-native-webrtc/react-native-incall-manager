@@ -22,8 +22,11 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
-//import android.media.AudioAttributes; // --- for API 21+
+import android.media.AudioAttributes;
 import android.media.AudioManager;
+import androidx.media.AudioAttributesCompat;
+import androidx.media.AudioManagerCompat;
+import androidx.media.AudioFocusRequestCompat;
 import android.media.AudioDeviceInfo;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
@@ -794,44 +797,48 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
         try {
             Log.d(TAG, "startRingback(): UriType=" + ringbackUriType);
+
             if (mRingback != null) {
                 if (mRingback.isPlaying()) {
                     Log.d(TAG, "startRingback(): is already playing");
                     return;
-                } else {
-                    stopRingback(); // --- use brandnew instance
                 }
+
+                stopRingback(); // --- use brandnew instance
             }
 
             Uri ringbackUri;
             Map data = new HashMap<String, Object>();
             data.put("name", "mRingback");
+
+            // --- use ToneGenerator instead file uri
             if (ringbackUriType.equals("_DTMF_")) {
                 mRingback = new myToneGenerator(myToneGenerator.RINGBACK);
                 mRingback.startPlay(data);
                 return;
-            } else {
-                ringbackUri = getRingbackUri(ringbackUriType);
-                if (ringbackUri == null) {
-                    Log.d(TAG, "startRingback(): no available media");
-                    return;    
-                }
+            }
+
+            ringbackUri = getRingbackUri(ringbackUriType);
+            if (ringbackUri == null) {
+                Log.d(TAG, "startRingback(): no available media");
+                return;    
             }
 
             mRingback = new myMediaPlayer();
             data.put("sourceUri", ringbackUri);
             data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION); // USAGE_VOICE_COMMUNICATION_SIGNALLING ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH); // CONTENT_TYPE_MUSIC ?
-            */
+
+            //data.put("audioStream", AudioManager.STREAM_VOICE_CALL); // --- lagacy
+            // --- The ringback doesn't have to be a DTMF.
+            // --- Should use VOICE_COMMUNICATION for sound during call or it may be silenced.
+            data.put("audioUsage", AudioAttributesCompat.USAGE_VOICE_COMMUNICATION);
+            data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_MUSIC);
+
             setMediaPlayerEvents((MediaPlayer)mRingback, "mRingback");
+
             mRingback.startPlay(data);
         } catch(Exception e) {
-            Log.d(TAG, "startRingback() failed");
+            Log.d(TAG, "startRingback() failed", e);
         }   
     }
 
@@ -863,42 +870,42 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 if (mBusytone.isPlaying()) {
                     Log.d(TAG, "startBusytone(): is already playing");
                     return false;
-                } else {
-                    stopBusytone(); // --- use brandnew instance
                 }
+
+                stopBusytone(); // --- use brandnew instance
             }
 
             Uri busytoneUri;
             Map data = new HashMap<String, Object>();
             data.put("name", "mBusytone");
+
+            // --- use ToneGenerator instead file uri
             if (busytoneUriType.equals("_DTMF_")) {
                 mBusytone = new myToneGenerator(myToneGenerator.BUSY);
                 mBusytone.startPlay(data);
                 return true;
-            } else {
-                busytoneUri = getBusytoneUri(busytoneUriType);
-                if (busytoneUri == null) {
-                    Log.d(TAG, "startBusytone(): no available media");
-                    return false;    
-                }
+            }
+
+            busytoneUri = getBusytoneUri(busytoneUriType);
+            if (busytoneUri == null) {
+                Log.d(TAG, "startBusytone(): no available media");
+                return false;    
             }
 
             mBusytone = new myMediaPlayer();
+
             data.put("sourceUri", busytoneUri);
             data.put("setLooping", false);
-            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING); // USAGE_VOICE_COMMUNICATION ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH);
-            */
+            //data.put("audioStream", AudioManager.STREAM_VOICE_CALL); // --- lagacy
+            // --- Should use VOICE_COMMUNICATION for sound during a call or it may be silenced.
+            data.put("audioUsage", AudioAttributesCompat.USAGE_VOICE_COMMUNICATION);
+            data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_SONIFICATION); // --- CONTENT_TYPE_MUSIC?
+
             setMediaPlayerEvents((MediaPlayer)mBusytone, "mBusytone");
             mBusytone.startPlay(data);
             return true;
         } catch(Exception e) {
-            Log.d(TAG, "startBusytone() failed");
-            Log.d(TAG, e.getMessage());
+            Log.d(TAG, "startBusytone() failed", e);
             return false;
         }   
     }
@@ -955,17 +962,17 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     storeOriginalAudioSetup();
                     Map data = new HashMap<String, Object>();
                     mRingtone = new myMediaPlayer();
+
                     data.put("name", "mRingtone");
                     data.put("sourceUri", ringtoneUri);
                     data.put("setLooping", true);
-                    data.put("audioStream", AudioManager.STREAM_RING);
-                    /*
-                    TODO: for API 21
-                    data.put("audioFlag", 0);
-                    data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
-                    data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
-                    */
+
+                    //data.put("audioStream", AudioManager.STREAM_RING); // --- lagacy
+                    data.put("audioUsage", AudioAttributesCompat.USAGE_NOTIFICATION_RINGTONE); // --- USAGE_NOTIFICATION_COMMUNICATION_REQUEST?
+                    data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_MUSIC);
+
                     setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
+
                     mRingtone.startPlay(data);
 
                     if (seconds > 0) {
@@ -1349,10 +1356,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private class myMediaPlayer extends MediaPlayer implements MyPlayerInterface {
 
-        //myMediaPlayer() {
-        //    super();
-        //}
-
         @Override
         public void stopPlay() {
             stop();
@@ -1363,38 +1366,24 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         @Override
         public void startPlay(final Map data) {
             try {
-                Uri sourceUri = (Uri) data.get("sourceUri");
-                boolean setLooping = (Boolean) data.get("setLooping");
-                int stream = (Integer) data.get("audioStream");
-                String name = (String) data.get("name");
-
                 ReactContext reactContext = getReactApplicationContext();
-                setDataSource(reactContext, sourceUri);
-                setLooping(setLooping);
-                setAudioStreamType(stream); // is better using STREAM_DTMF for ToneGenerator?
 
-                /*
-                // TODO: use modern and more explicit audio stream api
-                if (android.os.Build.VERSION.SDK_INT >= 21) {
-                    int audioFlag = (Integer) data.get("audioFlag");
-                    int audioUsage = (Integer) data.get("audioUsage");
-                    int audioContentType = (Integer) data.get("audioContentType");
+                setDataSource(reactContext, (Uri) data.get("sourceUri"));
+                setLooping((Boolean) data.get("setLooping"));
 
-                    setAudioAttributes(
-                        new AudioAttributes.Builder()
-                            .setFlags(audioFlag)
-                            .setLegacyStreamType(stream)
-                            .setUsage(audioUsage)
-                            .setContentType(audioContentType)
-                            .build()
-                    );
-                }
-                */
+                // --- the `minSdkVersion` is 21 since RN 64,
+                // --- if you want to suuport api < 21, comment out `setAudioAttributes` and use `setAudioStreamType((Integer) data.get("audioStream"))` instead
+                setAudioAttributes(
+                    new AudioAttributes.Builder()
+                        .setUsage((Integer) data.get("audioUsage"))
+                        .setContentType((Integer) data.get("audioContentType"))
+                        .build()
+                );
 
                 // -- will start at onPrepared() event
                 prepareAsync();
             } catch (Exception e) {
-                Log.d(TAG, "startPlay() failed");
+                Log.d(TAG, "startPlay() failed", e);
             }
         }
 
