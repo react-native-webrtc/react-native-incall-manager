@@ -707,7 +707,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                    callerMemo:NSStringFromSelector(_cmd)];
 }
 
-- (void)startProximitySensor
+RCT_EXPORT_METHOD(startProximitySensor)
 {
     if (_isProximityRegistered) {
         return;
@@ -737,7 +737,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     _isProximityRegistered = YES;
 }
 
-- (void)stopProximitySensor
+RCT_EXPORT_METHOD(stopProximitySensor)
 {
     if (!_isProximityRegistered) {
         return;
