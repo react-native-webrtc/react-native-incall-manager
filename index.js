@@ -110,23 +110,8 @@ class InCallManager {
         _InCallManager.stopProximitySensor();
     }
 
-    async checkRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.checkRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
-    async requestRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.requestRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
     startRingback(ringback) {
         ringback = (typeof ringback === 'string') ? ringback : "_DTMF_";
-      
         _InCallManager.startRingback(ringback);
     }
 
