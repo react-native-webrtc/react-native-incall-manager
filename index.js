@@ -102,9 +102,16 @@ class InCallManager {
         _InCallManager.stopRingtone();
     }
 
+    startProximitySensor() {
+        _InCallManager.startProximitySensor();
+    }
+  
+    stopProximitySensor() {
+        _InCallManager.stopProximitySensor();
+    }
+
     startRingback(ringback) {
         ringback = (typeof ringback === 'string') ? ringback : "_DTMF_";
-
         _InCallManager.startRingback(ringback);
     }
 
