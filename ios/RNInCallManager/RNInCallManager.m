@@ -493,6 +493,15 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
         NSLog(@"RNInCallManager.updateAudioRoute(): did NOT overrideOutputAudioPort()");
     }
 
+    if (![_audioSession.category isEqualToString:_incallAudioCategory]) {
+        [self audioSessionSetCategory:_incallAudioCategory
+                              options:0
+                           callerMemo:NSStringFromSelector(_cmd)];
+        NSLog(@"RNInCallManager.updateAudioRoute() audio category has changed to %@", _incallAudioCategory);
+    } else {
+        NSLog(@"RNInCallManager.updateAudioRoute() did NOT change audio category");
+    }
+
     if (audioMode.length > 0 && ![_audioSession.mode isEqualToString:audioMode]) {
         [self audioSessionSetMode:audioMode
                        callerMemo:NSStringFromSelector(_cmd)];
