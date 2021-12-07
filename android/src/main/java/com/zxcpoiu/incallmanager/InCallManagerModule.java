@@ -23,11 +23,9 @@ import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
-import android.media.AudioManager;
-import androidx.media.AudioAttributesCompat;
-import androidx.media.AudioManagerCompat;
-import androidx.media.AudioFocusRequestCompat;
 import android.media.AudioDeviceInfo;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
 import android.net.Uri;
@@ -37,8 +35,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -83,6 +79,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private AudioManager audioManager;
     private boolean audioManagerActivated = false;
     private boolean isAudioFocused = false;
+    //private final Object mAudioFocusLock = new Object();
     private boolean isOrigAudioSetupStored = false;
     private boolean origIsSpeakerPhoneOn = false;
     private boolean origIsMicrophoneMute = false;
@@ -98,6 +95,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private BroadcastReceiver noisyAudioReceiver;
     private BroadcastReceiver mediaButtonReceiver;
     private OnFocusChangeListener mOnFocusChangeListener;
+    private AudioAttributes mAudioAttributes;
+    private AudioFocusRequest mAudioFocusRequest;
 
     // --- same as: RingtoneManager.getActualDefaultRingtoneUri(reactContext, RingtoneManager.TYPE_RINGTONE);
     private Uri defaultRingtoneUri = Settings.System.DEFAULT_RINGTONE_URI;
@@ -454,6 +453,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     private class OnFocusChangeListener implements AudioManager.OnAudioFocusChangeListener {
+        // --- see: https://developer.android.com/reference/android/media/AudioManager
 
         @Override
         public void onAudioFocusChange(final int focusChange) {
@@ -479,6 +479,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     break;
                 case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
                     focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
+                    break;
+                case AudioManager.AUDIOFOCUS_NONE:
+                    focusChangeStr = "AUDIOFOCUS_NONE";
                     break;
                 default:
                     focusChangeStr = "AUDIOFOCUS_UNKNOW";
@@ -612,7 +615,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 forceSpeakerOn = 0;
                 bluetoothManager.stop();
                 restoreOriginalAudioSetup();
-                releaseAudioFocus();
+                abandonAudioFocus();
                 audioManagerActivated = false;
             }
             wakeLockUtils.releasePartialWakeLock();
@@ -637,23 +640,66 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     private void requestAudioFocus() {
-        if (!isAudioFocused) {
-            int result = audioManager.requestAudioFocus(mOnFocusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN);
-            if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                Log.d(TAG, "AudioFocus granted");
-                isAudioFocused = true;
-            } else if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
-                Log.d(TAG, "AudioFocus failed");
-                isAudioFocused = false;
-            }
+        if (isAudioFocused) {
+            return;
         }
+
+        if (mAudioAttributes == null) {
+            mAudioAttributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build();
+        }
+
+        if (mAudioFocusRequest == null) {
+            mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(mAudioAttributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setWillPauseWhenDucked(false)
+                    .setOnAudioFocusChangeListener(mOnFocusChangeListener)
+                    .build();
+        }
+
+        int requestAudioFocusRes = audioManager.requestAudioFocus(mAudioFocusRequest);
+        String requestAudioFocusResStr;
+        switch (requestAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = true;
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_DELAYED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_DELAYED";
+                break;
+            default:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+        Log.d(TAG, "requestAudioFocus(): res = " + requestAudioFocusRes + " - " + requestAudioFocusResStr);
     }
 
-    private void releaseAudioFocus() {
-        if (isAudioFocused) {
-            audioManager.abandonAudioFocus(null);
-            isAudioFocused = false;
+    private void abandonAudioFocus() {
+        if (!isAudioFocused || mAudioFocusRequest == null) {
+            return;
         }
+
+        int abandonAudioFocusRes = audioManager.abandonAudioFocusRequest(mAudioFocusRequest);
+        String abandonAudioFocusResStr;
+        switch (abandonAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = false;
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+        Log.d(TAG, "abandonAudioFocus(): res = " + abandonAudioFocusRes + " - " + abandonAudioFocusResStr);
     }
 
     @ReactMethod
@@ -832,8 +878,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             //data.put("audioStream", AudioManager.STREAM_VOICE_CALL); // --- lagacy
             // --- The ringback doesn't have to be a DTMF.
             // --- Should use VOICE_COMMUNICATION for sound during call or it may be silenced.
-            data.put("audioUsage", AudioAttributesCompat.USAGE_VOICE_COMMUNICATION);
-            data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_MUSIC);
+            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION);
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
 
             setMediaPlayerEvents((MediaPlayer)mRingback, "mRingback");
 
@@ -899,8 +945,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("setLooping", false);
             //data.put("audioStream", AudioManager.STREAM_VOICE_CALL); // --- lagacy
             // --- Should use VOICE_COMMUNICATION for sound during a call or it may be silenced.
-            data.put("audioUsage", AudioAttributesCompat.USAGE_VOICE_COMMUNICATION);
-            data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_SONIFICATION); // --- CONTENT_TYPE_MUSIC?
+            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION);
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SONIFICATION); // --- CONTENT_TYPE_MUSIC?
 
             setMediaPlayerEvents((MediaPlayer)mBusytone, "mBusytone");
             mBusytone.startPlay(data);
@@ -969,8 +1015,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     data.put("setLooping", true);
 
                     //data.put("audioStream", AudioManager.STREAM_RING); // --- lagacy
-                    data.put("audioUsage", AudioAttributesCompat.USAGE_NOTIFICATION_RINGTONE); // --- USAGE_NOTIFICATION_COMMUNICATION_REQUEST?
-                    data.put("audioContentType", AudioAttributesCompat.CONTENT_TYPE_MUSIC);
+                    data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // --- USAGE_NOTIFICATION_COMMUNICATION_REQUEST?
+                    data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
 
                     setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
 
