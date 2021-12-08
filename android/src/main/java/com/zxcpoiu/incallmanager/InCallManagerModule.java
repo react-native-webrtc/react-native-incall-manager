@@ -640,6 +640,14 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     private void requestAudioFocus() {
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            requestAudioFocusV26();
+        } else {
+            requestAudioFocusOld();
+        }
+    }
+
+    private void requestAudioFocusV26() {
         if (isAudioFocused) {
             return;
         }
@@ -661,6 +669,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
 
         int requestAudioFocusRes = audioManager.requestAudioFocus(mAudioFocusRequest);
+
         String requestAudioFocusResStr;
         switch (requestAudioFocusRes) {
             case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
@@ -677,10 +686,43 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
                 break;
         }
+
+        Log.d(TAG, "requestAudioFocus(): res = " + requestAudioFocusRes + " - " + requestAudioFocusResStr);
+    }
+
+    private void requestAudioFocusOld() {
+        if (isAudioFocused) {
+            return;
+        }
+
+        int requestAudioFocusRes = audioManager.requestAudioFocus(mOnFocusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+
+        String requestAudioFocusResStr;
+        switch (requestAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = true;
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
         Log.d(TAG, "requestAudioFocus(): res = " + requestAudioFocusRes + " - " + requestAudioFocusResStr);
     }
 
     private void abandonAudioFocus() {
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            abandonAudioFocusV26();
+        } else {
+            abandonAudioFocusOld();
+        }
+    }
+
+    private void abandonAudioFocusV26() {
         if (!isAudioFocused || mAudioFocusRequest == null) {
             return;
         }
@@ -699,6 +741,30 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
                 break;
         }
+        Log.d(TAG, "abandonAudioFocus(): res = " + abandonAudioFocusRes + " - " + abandonAudioFocusResStr);
+    }
+
+    private void abandonAudioFocusOld() {
+        if (!isAudioFocused) {
+            return;
+        }
+
+        int abandonAudioFocusRes = audioManager.abandonAudioFocus(null);
+
+        String abandonAudioFocusResStr;
+        switch (abandonAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = false;
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
         Log.d(TAG, "abandonAudioFocus(): res = " + abandonAudioFocusRes + " - " + abandonAudioFocusResStr);
     }
 
