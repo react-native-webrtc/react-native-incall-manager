@@ -65,7 +65,7 @@ import java.util.Set;
 
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCBluetoothManager;
 
-public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener, AudioManager.OnAudioFocusChangeListener {
     private static final String REACT_NATIVE_MODULE_NAME = "InCallManager";
     private static final String TAG = REACT_NATIVE_MODULE_NAME;
     private String mPackageName = "com.zxcpoiu.incallmanager";
@@ -94,7 +94,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private BroadcastReceiver wiredHeadsetReceiver;
     private BroadcastReceiver noisyAudioReceiver;
     private BroadcastReceiver mediaButtonReceiver;
-    private OnFocusChangeListener mOnFocusChangeListener;
     private AudioAttributes mAudioAttributes;
     private AudioFocusRequest mAudioFocusRequest;
 
@@ -166,9 +165,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     // avoid duplicate elements.
     private Set<AudioDevice> audioDevices = new HashSet<>();
 
-    // Callback method for changes in audio focus.
-    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
-
     interface MyPlayerInterface {
         public boolean isPlaying();
         public void startPlay(Map<String, Object> data);
@@ -194,7 +190,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         audioUriMap.put("bundleRingtoneUri", bundleRingtoneUri);
         audioUriMap.put("bundleRingbackUri", bundleRingbackUri);
         audioUriMap.put("bundleBusytoneUri", bundleBusytoneUri);
-        mOnFocusChangeListener = new OnFocusChangeListener();
         bluetoothManager = AppRTCBluetoothManager.create(reactContext, this);
         proximityManager = InCallProximityManager.create(reactContext, this);
         wakeLockUtils = new InCallWakeLockUtils(reactContext);
@@ -452,49 +447,46 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         isProximityRegistered = false;
     }
 
-    private class OnFocusChangeListener implements AudioManager.OnAudioFocusChangeListener {
-        // --- see: https://developer.android.com/reference/android/media/AudioManager
-
-        @Override
-        public void onAudioFocusChange(final int focusChange) {
-            String focusChangeStr;
-            switch (focusChange) {
-                case AudioManager.AUDIOFOCUS_GAIN:
-                    focusChangeStr = "AUDIOFOCUS_GAIN";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS:
-                    focusChangeStr = "AUDIOFOCUS_LOSS";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                    focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                    focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
-                    break;
-                case AudioManager.AUDIOFOCUS_NONE:
-                    focusChangeStr = "AUDIOFOCUS_NONE";
-                    break;
-                default:
-                    focusChangeStr = "AUDIOFOCUS_UNKNOW";
-                    break;
-            }
-
-            Log.d(TAG, "onAudioFocusChange: " + focusChange + " - " + focusChangeStr);
-
-            WritableMap data = Arguments.createMap();
-            data.putString("eventText", focusChangeStr);
-            data.putInt("eventCode", focusChange);
-            sendEvent("onAudioFocusChange", data);
+    // --- see: https://developer.android.com/reference/android/media/AudioManager
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+        String focusChangeStr;
+        switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_GAIN:
+                focusChangeStr = "AUDIOFOCUS_GAIN";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS:
+                focusChangeStr = "AUDIOFOCUS_LOSS";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
+                break;
+            case AudioManager.AUDIOFOCUS_NONE:
+                focusChangeStr = "AUDIOFOCUS_NONE";
+                break;
+            default:
+                focusChangeStr = "AUDIOFOCUS_UNKNOW";
+                break;
         }
+
+        Log.d(TAG, "onAudioFocusChange(): " + focusChange + " - " + focusChangeStr);
+
+        WritableMap data = Arguments.createMap();
+        data.putString("eventText", focusChangeStr);
+        data.putInt("eventCode", focusChange);
+        sendEvent("onAudioFocusChange", data);
     }
 
     /*
@@ -669,7 +661,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     .setAudioAttributes(mAudioAttributes)
                     .setAcceptsDelayedFocusGain(false)
                     .setWillPauseWhenDucked(false)
-                    .setOnAudioFocusChangeListener(mOnFocusChangeListener)
+                    .setOnAudioFocusChangeListener(this)
                     .build();
         }
 
@@ -700,7 +692,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             return "";
         }
 
-        int requestAudioFocusRes = audioManager.requestAudioFocus(mOnFocusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+        int requestAudioFocusRes = audioManager.requestAudioFocus(this, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
 
         String requestAudioFocusResStr;
         switch (requestAudioFocusRes) {
@@ -760,7 +752,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             return "";
         }
 
-        int abandonAudioFocusRes = audioManager.abandonAudioFocus(null);
+        int abandonAudioFocusRes = audioManager.abandonAudioFocus(this);
 
         String abandonAudioFocusResStr;
         switch (abandonAudioFocusRes) {
