@@ -153,6 +153,22 @@ class InCallManager {
         let result = await _InCallManager.chooseAudioRoute(route);
         return result;
     }
+
+    async requestAudioFocus() {
+        if (Platform.OS === 'android') {
+            return await _InCallManager.requestAudioFocusJS();
+        } else {
+            console.log("ios doesn't support requestAudioFocus()");
+        }
+    }
+
+    async abandonAudioFocus() {
+        if (Platform.OS === 'android') {
+            return await _InCallManager.abandonAudioFocusJS();
+        } else {
+            console.log("ios doesn't support requestAudioFocus()");
+        }
+    }
 }
 
 export default new InCallManager();
