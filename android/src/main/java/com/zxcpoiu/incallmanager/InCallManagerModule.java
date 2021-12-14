@@ -1718,12 +1718,19 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 } else if (type == AudioDeviceInfo.TYPE_USB_DEVICE) {
                     Log.d(TAG, "hasWiredHeadset: found USB audio device");
                     return true;
+                } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
+                    Log.d(TAG, "hasWiredHeadset: found wired headphones");
+                    return true;
                 }
             }
             return false;
         }
     }
 
+    @ReactMethod
+    public void getIsWiredHeadsetPluggedIn(Promise promise) {
+        promise.resolve(this.hasWiredHeadset());
+    }
 
     /**
      * Updates list of possible audio devices and make new device selection.

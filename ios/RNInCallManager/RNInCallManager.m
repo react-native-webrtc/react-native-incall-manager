@@ -434,9 +434,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                                       reject:(RCTPromiseRejectBlock)reject)
 {
     BOOL wiredHeadsetPluggedIn = [self isWiredHeadsetPluggedIn];
-    resolve(@{
-        @"isWiredHeadsetPluggedIn": wiredHeadsetPluggedIn ? @YES : @NO,
-    });
+    resolve(wiredHeadsetPluggedIn ? @YES : @NO);
 }
 
 - (void)updateAudioRoute
