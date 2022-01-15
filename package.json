@@ -1,5 +1,5 @@
 {
-  "name": "react-native-incall-manager",
+  "name": "@zhumi/react-native-incall-manager",
   "version": "3.3.0",
   "description": "Handling media-routes/sensors/events during a audio/video chat on React Native",
   "main": "index.js",
@@ -8,7 +8,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/react-native-webrtc/react-native-incall-manager.git"
+    "url": "git+https://github.com/zhangshaoju1987/react-native-incall-manager.git"
+  },
+  "publishConfig": {
+    "access":"public"
   },
   "keywords": [
     "React",
@@ -21,12 +24,12 @@
     "SIP",
     "Voip"
   ],
-  "author": "Henry Lin <zxcpoiu@gmail.com>",
-  "license": "ISC",
+  "author": "Bigbrain<zhangshaoju.12@gmail.com>",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/react-native-webrtc/react-native-incall-manager/issues"
+    "url": "https://github.com/zhangshaoju1987/react-native-incall-manager/issues"
   },
-  "homepage": "https://github.com/react-native-webrtc/react-native-incall-manager#readme",
+  "homepage": "https://github.com/zhangshaoju1987/react-native-incall-manager#readme",
   "peerDependencies": {
     "react-native": ">=0.40.0"
   }
