@@ -826,7 +826,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             mRingback = new myMediaPlayer();
             data.put("sourceUri", ringbackUri);
             data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
+            data.put("audioStream", AudioManager.STREAM_MUSIC);
             /*
             TODO: for API 21
             data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
@@ -891,7 +891,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             mBusytone = new myMediaPlayer();
             data.put("sourceUri", busytoneUri);
             data.put("setLooping", false);
-            data.put("audioStream", AudioManager.STREAM_VOICE_CALL);
+            data.put("audioStream", AudioManager.STREAM_MUSIC);
             /*
             TODO: for API 21
             data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
@@ -934,10 +934,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
             //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
             //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
-            if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
-                Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
-                return;
-            }
+            
+            // enna Dock App should play Ringtone regardless of mute state
+            // if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
+            //     Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
+            //     return;
+            // }
 
             // --- there is no _DTMF_ option in startRingtone()
             Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
@@ -958,7 +960,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             data.put("name", "mRingtone");
             data.put("sourceUri", ringtoneUri);
             data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_RING);
+            data.put("audioStream", AudioManager.STREAM_MUSIC);
             /*
             TODO: for API 21
             data.put("audioFlag", 0);
