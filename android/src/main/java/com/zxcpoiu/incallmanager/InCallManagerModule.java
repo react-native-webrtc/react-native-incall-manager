@@ -626,7 +626,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         startNoisyAudioEvent();
         startMediaButtonEvent();
         startProximitySensor(); // --- proximity event always enable, but only turn screen off when audio is routing to earpiece.
-        setKeepScreenOn(true);
+        // setKeepScreenOn(true);
     }
 
     private void stopEvents() {
@@ -634,7 +634,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         stopNoisyAudioEvent();
         stopMediaButtonEvent();
         stopProximitySensor();
-        setKeepScreenOn(false);
+        // setKeepScreenOn(false);
         turnScreenOn();
     }
 
