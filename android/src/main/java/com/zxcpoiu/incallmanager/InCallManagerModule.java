@@ -635,7 +635,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         stopMediaButtonEvent();
         stopProximitySensor();
         // setKeepScreenOn(false);
-        turnScreenOn();
+        // turnScreenOn();
     }
 
     private void requestAudioFocus() {
