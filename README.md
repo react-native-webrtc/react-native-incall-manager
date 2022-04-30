@@ -203,67 +203,6 @@ DeviceEventEmitter.addListener('Proximity', function (data) {
 
 ```
 
-## About Permission:
-
-
-Since version 1.2.0, two functions and a property were added:
-
-```javascript
-// --- function
-async checkRecordPermission() // return promise
-async requestRecordPermission() // return promise
-
-// --- property
-recordPermission = 'unknow' or 'granted' or 'denied', default is 'unknow'
-```
-
-After incall-manager initialized, it will check current state of record permission and set to `recordPermission` property.
-so you can just write below code in your `ComponentDidMount` like:
-
-```javascript
-if (InCallManager.recordPermission !== 'granted') {
-    InCallManager.requestRecordPermission()
-    .then((requestedRecordPermissionResult) => {
-        console.log("InCallManager.requestRecordPermission() requestedRecordPermissionResult: ", requestedRecordPermissionResult);
-    })
-    .catch((err) => {
-        console.log("InCallManager.requestRecordPermission() catch: ", err);
-    });
-}
-```
-
-We use android support library v4 to check/request permissions.  
-You should add `compile "com.android.support:support-v4:23.0.1"` in `$your_project/android/app/build.gradle` dependencies on android.
-
-
-**NOTE for android:**
-
-React Native does not officially support api 23 currently ( it is on api 22 now. see: [RN known issues](https://facebook.github.io/react-native/docs/known-issues.html#android-m-permissions)) and android supports request permission at runtime since api 23, so it will always return 'granted' immediately after calling `checkRecordPermission()` or `requestRecordPermission()`.
-
-If you really need the functionality, you can do the following to make them work but at your own risk:  
-( I've tested it though, but who knows :) )
-
-Step 1: change your `targetSdkVersion` to 23 in `$your_project/android/app/build.gradle`  
-Step 2: override `onRequestPermissionsResult` in your `MainActivity.java` like:  
-
-```
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        InCallManagerPackage.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-    }
-```
-
-Then you can test it on android 6 now.
-
-**Another thing you should know is:**
-
-If you change targetSdkVersion to 23, the `red box` which React Native used to display errors in development mode requires permission `Draw Over Other Apps`.  
-So in **development mode**, you should manually grant permission in `app settings` on your device or declare `android.permission.SYSTEM_ALERT_WINDOW` in your manifest.  
-You don't have to do this in **release mode** since there is no red box.  
-
-
-Check out this awesome project: [react-native-android-permissions](https://github.com/lucasferreira/react-native-android-permissions) by @lucasferreira for more information.
 
 
 ## Automatic Basic Behavior:
@@ -301,8 +240,6 @@ Note: iOS only supports `auto` currently.
 | setSpeakerphoneOn(`enable: ?boolean`)   | :smile: | :rage: | toggle speaker ON/OFF once. but not force</br>default: false |
 | setForceSpeakerphoneOn(`flag: ?boolean`)   | :smile: | :smile: | true -> force speaker on</br> false -> force speaker off</br> null -> use default behavior according to media type</br>default: null |
 | setMicrophoneMute(`enable: ?boolean`)   | :smile: | :rage: | mute/unmute micophone</br>default: false</br>p.s. if you use webrtc, you can just use `track.enabled = false` to mute |
-| async checkRecordPermission()   | :smile: | :smile: | check record permission without promt. return Promise. see **about permission** section above |
-| async requestRecordPermission()   | :smile: | :smile: | request record permission to user. return Promise. see **about permission** section above |
 | async getAudioUriJS()   | :smile: | :smile: | get audio Uri path. this would be useful when you want to pass Uri into another module. |
 | startRingtone(`ringtone: string, ?vibrate_pattern: array, ?ios_category: string, ?seconds: number`)   | :smile: | :smile: | play ringtone. </br>`ringtone`: '_DEFAULT_' or '_BUNDLE_'</br>`vibrate_pattern`: same as RN, but does not support repeat</br>`ios_category`: ios only, if you want to use specific audio category</br>`seconds`: android only, specify how long do you want to play rather than play once nor repeat. in sec.|
 | stopRingtone()   | :smile: | :smile: | stop play ringtone if previous started via `startRingtone()` |
