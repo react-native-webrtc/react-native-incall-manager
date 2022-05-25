@@ -1,119 +1,64 @@
---- /home/zxcpoiu/git/webrtcbuilds/out/src/examples/androidapp/src/org/appspot/apprtc/AppRTCBluetoothManager.java	2017-11-30 16:59:50.918956062 +0800
-+++ AppRTCBluetoothManager.java	2017-12-08 18:01:45.348130079 +0800
-@@ -8,7 +8,7 @@
+--- AppRTCBluetoothManager.orig.java
++++ AppRTCBluetoothManager.java
+@@ -7,7 +7,7 @@
+  *  in the file PATENTS.  All contributing project authors may
   *  be found in the AUTHORS file in the root of the source tree.
   */
- 
 -package org.appspot.apprtc;
 +package com.zxcpoiu.incallmanager.AppRTC;
- 
  import android.annotation.SuppressLint;
  import android.bluetooth.BluetoothAdapter;
-@@ -27,8 +27,8 @@
- import android.util.Log;
+ import android.bluetooth.BluetoothDevice;
+@@ -19,6 +19,7 @@
+ import android.content.IntentFilter;
+ import android.content.pm.PackageManager;
+ import android.media.AudioManager;
++import android.os.Build;
+ import android.os.Handler;
+ import android.os.Looper;
+ import android.os.Process;
+@@ -26,8 +27,9 @@
+ import androidx.annotation.Nullable;
  import java.util.List;
  import java.util.Set;
 -import org.appspot.apprtc.util.AppRTCUtils;
 -import org.webrtc.ThreadUtils;
-+
++import com.zxcpoiu.incallmanager.AppRTC.AppRTCUtils;
++import com.zxcpoiu.incallmanager.AppRTC.ThreadUtils;
 +import com.zxcpoiu.incallmanager.InCallManagerModule;
- 
  /**
   * AppRTCProximitySensor manages functions related to Bluetoth devices in the
-@@ -63,7 +63,7 @@
+  * AppRTC demo.
+@@ -58,7 +60,7 @@
+     SCO_CONNECTED
    }
- 
    private final Context apprtcContext;
 -  private final AppRTCAudioManager apprtcAudioManager;
 +  private final InCallManagerModule apprtcAudioManager;
+   @Nullable
    private final AudioManager audioManager;
    private final Handler handler;
- 
-@@ -190,14 +190,13 @@
+@@ -183,11 +185,11 @@
+     }
    }
- 
    /** Construction. */
 -  static AppRTCBluetoothManager create(Context context, AppRTCAudioManager audioManager) {
--    Log.d(TAG, "create" + AppRTCUtils.getThreadInfo());
 +  public static AppRTCBluetoothManager create(Context context, InCallManagerModule audioManager) {
-+    Log.d(TAG, "create");
+     Log.d(TAG, "create" + AppRTCUtils.getThreadInfo());
      return new AppRTCBluetoothManager(context, audioManager);
    }
- 
 -  protected AppRTCBluetoothManager(Context context, AppRTCAudioManager audioManager) {
 +  protected AppRTCBluetoothManager(Context context, InCallManagerModule audioManager) {
      Log.d(TAG, "ctor");
--    ThreadUtils.checkIsOnMainThread();
+     ThreadUtils.checkIsOnMainThread();
      apprtcContext = context;
-     apprtcAudioManager = audioManager;
-     this.audioManager = getAudioManager(context);
-@@ -209,7 +208,6 @@
- 
-   /** Returns the internal state. */
-   public State getState() {
--    ThreadUtils.checkIsOnMainThread();
-     return bluetoothState;
-   }
- 
-@@ -227,7 +225,6 @@
-    * change.
-    */
+@@ -219,7 +221,8 @@
    public void start() {
--    ThreadUtils.checkIsOnMainThread();
+     ThreadUtils.checkIsOnMainThread();
      Log.d(TAG, "start");
-     if (!hasPermission(apprtcContext, android.Manifest.permission.BLUETOOTH)) {
+-    if (!hasPermission(apprtcContext, android.Manifest.permission.BLUETOOTH)) {
++    String p = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? android.Manifest.permission.BLUETOOTH_CONNECT : android.Manifest.permission.BLUETOOTH;
++    if (!hasPermission(apprtcContext, p)) {
        Log.w(TAG, "Process (pid=" + Process.myPid() + ") lacks BLUETOOTH permission");
-@@ -275,7 +272,6 @@
- 
-   /** Stops and closes all components related to Bluetooth audio. */
-   public void stop() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "stop: BT state=" + bluetoothState);
-     if (bluetoothAdapter == null) {
-       return;
-@@ -312,7 +308,6 @@
-    * accept SCO audio without a "call".
-    */
-   public boolean startScoAudio() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "startSco: BT state=" + bluetoothState + ", "
-             + "attempts: " + scoConnectionAttempts + ", "
-             + "SCO is on: " + isScoOn());
-@@ -341,7 +336,6 @@
- 
-   /** Stops Bluetooth SCO connection with remote device. */
-   public void stopScoAudio() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "stopScoAudio: BT state=" + bluetoothState + ", "
-             + "SCO is on: " + isScoOn());
-     if (bluetoothState != State.SCO_CONNECTING && bluetoothState != State.SCO_CONNECTED) {
-@@ -432,21 +426,18 @@
- 
-   /** Ensures that the audio manager updates its list of available audio devices. */
-   private void updateAudioDeviceState() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "updateAudioDeviceState");
-     apprtcAudioManager.updateAudioDeviceState();
-   }
- 
-   /** Starts timer which times out after BLUETOOTH_SCO_TIMEOUT_MS milliseconds. */
-   private void startTimer() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "startTimer");
-     handler.postDelayed(bluetoothTimeoutRunnable, BLUETOOTH_SCO_TIMEOUT_MS);
-   }
- 
-   /** Cancels any outstanding timer tasks. */
-   private void cancelTimer() {
--    ThreadUtils.checkIsOnMainThread();
-     Log.d(TAG, "cancelTimer");
-     handler.removeCallbacks(bluetoothTimeoutRunnable);
-   }
-@@ -456,7 +447,6 @@
-    * happens when the BT device has been turned on during an ongoing call.
-    */
-   private void bluetoothTimeout() {
--    ThreadUtils.checkIsOnMainThread();
-     if (bluetoothState == State.UNINITIALIZED || bluetoothHeadset == null) {
        return;
      }

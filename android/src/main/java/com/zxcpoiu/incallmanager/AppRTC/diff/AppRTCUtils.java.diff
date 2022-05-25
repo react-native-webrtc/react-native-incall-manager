@@ -1,0 +1,11 @@
+--- AppRTCUtils.orig.java	2022-05-26 06:35:49.532008067 +0800
++++ AppRTCUtils.java	2022-05-26 06:36:31.007700973 +0800
+@@ -7,7 +7,7 @@
+  *  in the file PATENTS.  All contributing project authors may
+  *  be found in the AUTHORS file in the root of the source tree.
+  */
+-package org.appspot.apprtc.util;
++package com.zxcpoiu.incallmanager.AppRTC;
+ import android.os.Build;
+ import android.util.Log;
+ /**
