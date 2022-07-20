@@ -56,9 +56,12 @@
     NSString *_origAudioMode;
     BOOL _audioSessionInitialized;
     int _forceSpeakerOn;
-    NSString *_recordPermission;
-    NSString *_cameraPermission;
     NSString *_media;
+}
+
++ (BOOL)requiresMainQueueSetup
+{
+    return NO;
 }
 
 RCT_EXPORT_MODULE(InCallManager)
@@ -101,8 +104,6 @@ RCT_EXPORT_MODULE(InCallManager)
         _origAudioMode = nil;
         _audioSessionInitialized = NO;
         _forceSpeakerOn = 0;
-        _recordPermission = nil;
-        _cameraPermission = nil;
         _media = @"audio";
 
         NSLog(@"RNInCallManager.init(): initialized");
@@ -127,10 +128,6 @@ RCT_EXPORT_METHOD(start:(NSString *)mediaType
         ringbackUriType:(NSString *)ringbackUriType)
 {
     if (_audioSessionInitialized) {
-        return;
-    }
-    if (![_recordPermission isEqualToString:@"granted"]) {
-        NSLog(@"RNInCallManager.start(): recordPermission should be granted. state: %@", _recordPermission);
         return;
     }
     _media = mediaType;
@@ -236,7 +233,47 @@ RCT_EXPORT_METHOD(setKeepScreenOn:(BOOL)enable)
 
 RCT_EXPORT_METHOD(setSpeakerphoneOn:(BOOL)enable)
 {
-    NSLog(@"RNInCallManager.setSpeakerphoneOn(): ios doesn't support setSpeakerphoneOn()");
+    BOOL success;
+    NSError *error = nil;
+    NSArray* routes = [_audioSession availableInputs];
+
+    if(!enable){
+        NSLog(@"Routing audio via Earpiece");
+        @try {
+            success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord error:&error];
+            if (!success)  NSLog(@"Cannot set category due to error: %@", error);
+            success = [_audioSession setMode:AVAudioSessionModeVoiceChat error:&error];
+            if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
+            [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+            if (!success)  NSLog(@"Port override failed due to: %@", error);
+            [_audioSession overrideOutputAudioPort:[AVAudioSessionPortBuiltInReceiver intValue] error:&error];
+            success = [_audioSession setActive:YES error:&error];
+            if (!success) NSLog(@"Audio session override failed: %@", error);
+            else NSLog(@"AudioSession override is successful ");
+
+        } @catch (NSException *e) {
+            NSLog(@"Error occurred while routing audio via Earpiece: %@", e.reason);
+        }
+    } else {
+        NSLog(@"Routing audio via Loudspeaker");
+        @try {
+            NSLog(@"Available routes: %@", routes[0]);
+            success = [_audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
+                        withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
+                        error:nil];
+            if (!success)  NSLog(@"Cannot set category due to error: %@", error);
+            success = [_audioSession setMode:AVAudioSessionModeVoiceChat error: &error];
+            if (!success)  NSLog(@"Cannot set mode due to error: %@", error);
+            [_audioSession setPreferredOutputNumberOfChannels:0 error:nil];
+            [_audioSession overrideOutputAudioPort:[AVAudioSessionPortBuiltInSpeaker intValue] error: &error];
+            if (!success)  NSLog(@"Port override failed due to: %@", error);
+            success = [_audioSession setActive:YES error:&error];
+            if (!success) NSLog(@"Audio session override failed: %@", error);
+            else NSLog(@"AudioSession override is successful ");
+        } @catch (NSException *e) {
+            NSLog(@"Error occurred while routing audio via Loudspeaker: %@", e.reason);
+        }
+    }
 }
 
 RCT_EXPORT_METHOD(setForceSpeakerphoneOn:(int)flag)
@@ -251,7 +288,7 @@ RCT_EXPORT_METHOD(setMicrophoneMute:(BOOL)enable)
     NSLog(@"RNInCallManager.setMicrophoneMute(): ios doesn't support setMicrophoneMute()");
 }
 
-- (void)startRingback:(NSString *)_ringbackUriType
+RCT_EXPORT_METHOD(startRingback:(NSString *)_ringbackUriType)
 {
     // you may rejected by apple when publish app if you use system sound instead of bundled sound.
     NSLog(@"RNInCallManager.startRingback(): type=%@", _ringbackUriType);
@@ -371,102 +408,6 @@ RCT_EXPORT_METHOD(stopRingtone)
     }
 }
 
-- (void)_checkRecordPermission
-{
-    NSString *recordPermission = @"unsupported";
-    switch ([_audioSession recordPermission]) {
-        case AVAudioSessionRecordPermissionGranted:
-            recordPermission = @"granted";
-            break;
-        case AVAudioSessionRecordPermissionDenied:
-            recordPermission = @"denied";
-            break;
-        case AVAudioSessionRecordPermissionUndetermined:
-            recordPermission = @"undetermined";
-            break;
-        default:
-            recordPermission = @"unknow";
-            break;
-    }
-    _recordPermission = recordPermission;
-    NSLog(@"RNInCallManager._checkRecordPermission(): recordPermission=%@", _recordPermission);
-}
-
-RCT_EXPORT_METHOD(checkRecordPermission:(RCTPromiseResolveBlock)resolve
-                                 reject:(RCTPromiseRejectBlock)reject)
-{
-    [self _checkRecordPermission];
-    if (_recordPermission != nil) {
-        resolve(_recordPermission);
-    } else {
-        reject(@"error_code", @"error message", RCTErrorWithMessage(@"checkRecordPermission is nil"));
-    }
-}
-
-RCT_EXPORT_METHOD(requestRecordPermission:(RCTPromiseResolveBlock)resolve
-                                   reject:(RCTPromiseRejectBlock)reject)
-{
-    NSLog(@"RNInCallManager.requestRecordPermission(): waiting for user confirmation...");
-    [_audioSession requestRecordPermission:^(BOOL granted) {
-        if (granted) {
-            _recordPermission = @"granted";
-        } else {
-            _recordPermission = @"denied";
-        }
-        NSLog(@"RNInCallManager.requestRecordPermission(): %@", _recordPermission);
-        resolve(_recordPermission);
-    }];
-}
-
-- (NSString *)_checkMediaPermission:(NSString *)targetMediaType
-{
-    switch ([AVCaptureDevice authorizationStatusForMediaType:targetMediaType]) {
-        case AVAuthorizationStatusAuthorized:
-            return @"granted";
-        case AVAuthorizationStatusDenied:
-            return @"denied";
-        case AVAuthorizationStatusNotDetermined:
-            return @"undetermined";
-        case AVAuthorizationStatusRestricted:
-            return @"restricted";
-        default:
-            return @"unknow";
-    }
-}
-
-- (void)_checkCameraPermission
-{
-    _cameraPermission = [self _checkMediaPermission:AVMediaTypeVideo];
-    NSLog(@"RNInCallManager._checkCameraPermission(): using iOS7 api. cameraPermission=%@", _cameraPermission);
-}
-
-RCT_EXPORT_METHOD(checkCameraPermission:(RCTPromiseResolveBlock)resolve
-                                 reject:(RCTPromiseRejectBlock)reject)
-{
-    [self _checkCameraPermission];
-    if (_cameraPermission != nil) {
-        resolve(_cameraPermission);
-    } else {
-        reject(@"error_code", @"error message", RCTErrorWithMessage(@"checkCameraPermission is nil"));
-    }
-}
-
-RCT_EXPORT_METHOD(requestCameraPermission:(RCTPromiseResolveBlock)resolve
-                                   reject:(RCTPromiseRejectBlock)reject)
-{
-    NSLog(@"RNInCallManager.requestCameraPermission(): waiting for user confirmation...");
-    [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
-                             completionHandler:^(BOOL granted) {
-        if (granted) {
-            _cameraPermission = @"granted";
-        } else {
-            _cameraPermission = @"denied";
-        }
-        NSLog(@"RNInCallManager.requestCameraPermission(): %@", _cameraPermission);
-        resolve(_cameraPermission);
-    }];
-}
-
 RCT_EXPORT_METHOD(getAudioUriJS:(NSString *)audioType
                        fileType:(NSString *)fileType
                         resolve:(RCTPromiseResolveBlock)resolve
@@ -493,9 +434,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                                       reject:(RCTPromiseRejectBlock)reject)
 {
     BOOL wiredHeadsetPluggedIn = [self isWiredHeadsetPluggedIn];
-    resolve(@{
-        @"isWiredHeadsetPluggedIn": wiredHeadsetPluggedIn ? @YES : @NO,
-    });
+    resolve(wiredHeadsetPluggedIn ? @YES : @NO);
 }
 
 - (void)updateAudioRoute
@@ -550,6 +489,15 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
         }
     } else {
         NSLog(@"RNInCallManager.updateAudioRoute(): did NOT overrideOutputAudioPort()");
+    }
+
+    if (![_audioSession.category isEqualToString:_incallAudioCategory]) {
+        [self audioSessionSetCategory:_incallAudioCategory
+                              options:0
+                           callerMemo:NSStringFromSelector(_cmd)];
+        NSLog(@"RNInCallManager.updateAudioRoute() audio category has changed to %@", _incallAudioCategory);
+    } else {
+        NSLog(@"RNInCallManager.updateAudioRoute() did NOT change audio category");
     }
 
     if (audioMode.length > 0 && ![_audioSession.mode isEqualToString:audioMode]) {
@@ -707,16 +655,17 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                    callerMemo:NSStringFromSelector(_cmd)];
 }
 
-- (void)startProximitySensor
+RCT_EXPORT_METHOD(startProximitySensor)
 {
     if (_isProximityRegistered) {
         return;
     }
 
     NSLog(@"RNInCallManager.startProximitySensor()");
-    // _currentDevice.proximityMonitoringEnabled = YES;
-    _currentDevice.proximityMonitoringEnabled = NO;
-    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self->_currentDevice.proximityMonitoringEnabled = YES;
+    });
+
     // --- in case it didn't deallocate when ViewDidUnload
     [self stopObserve:_proximityObserver
                  name:UIDeviceProximityStateDidChangeNotification
@@ -726,10 +675,10 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                                      object:_currentDevice
                                       queue: nil
                                       block:^(NSNotification *notification) {
-        BOOL state = _currentDevice.proximityState;
-        if (state != _proximityIsNear) {
+        BOOL state = self->_currentDevice.proximityState;
+        if (state != self->_proximityIsNear) {
             NSLog(@"RNInCallManager.UIDeviceProximityStateDidChangeNotification(): isNear: %@", state ? @"YES" : @"NO");
-            _proximityIsNear = state;
+            self->_proximityIsNear = state;
             [self sendEventWithName:@"Proximity" body:@{@"isNear": state ? @YES : @NO}];
         }
     }];
@@ -737,14 +686,16 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
     _isProximityRegistered = YES;
 }
 
-- (void)stopProximitySensor
+RCT_EXPORT_METHOD(stopProximitySensor)
 {
     if (!_isProximityRegistered) {
         return;
     }
 
     NSLog(@"RNInCallManager.stopProximitySensor()");
-    _currentDevice.proximityMonitoringEnabled = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self->_currentDevice.proximityMonitoringEnabled = NO;
+    });
 
     // --- remove all no matter what object
     [self stopObserve:_proximityObserver
@@ -884,7 +835,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                     }
                     break;
                 case AVAudioSessionRouteChangeReasonCategoryChange:
-                    NSLog(@"RNInCallManager.AudioRouteChange.Reason: CategoryChange. category=%@ mode=%@", _audioSession.category, _audioSession.mode);
+                    NSLog(@"RNInCallManager.AudioRouteChange.Reason: CategoryChange. category=%@ mode=%@", self->_audioSession.category, self->_audioSession.mode);
                     [self updateAudioRoute];
                     break;
                 case AVAudioSessionRouteChangeReasonOverride:
@@ -897,7 +848,7 @@ RCT_EXPORT_METHOD(getIsWiredHeadsetPluggedIn:(RCTPromiseResolveBlock)resolve
                     NSLog(@"RNInCallManager.AudioRouteChange.Reason: NoSuitableRouteForCategory");
                     break;
                 case AVAudioSessionRouteChangeReasonRouteConfigurationChange:
-                    NSLog(@"RNInCallManager.AudioRouteChange.Reason: RouteConfigurationChange. category=%@ mode=%@", _audioSession.category, _audioSession.mode);
+                    NSLog(@"RNInCallManager.AudioRouteChange.Reason: RouteConfigurationChange. category=%@ mode=%@", self->_audioSession.category, self->_audioSession.mode);
                     break;
                 default:
                     NSLog(@"RNInCallManager.AudioRouteChange.Reason: Unknow Value");

@@ -8,19 +8,11 @@ import {
 class InCallManager {
     constructor() {
         this.vibrate = false;
-        this.recordPermission = 'unknow';
-        this.cameraPermission = 'unknow';
         this.audioUriMap = {
             ringtone: { _BUNDLE_: null, _DEFAULT_: null},
             ringback: { _BUNDLE_: null, _DEFAULT_: null},
             busytone: { _BUNDLE_: null, _DEFAULT_: null},
         };
-        this.checkRecordPermission = this.checkRecordPermission.bind(this);
-        this.requestRecordPermission = this.requestRecordPermission.bind(this);
-        this.checkCameraPermission = this.checkCameraPermission.bind(this);
-        this.requestCameraPermission = this.requestCameraPermission.bind(this);
-        this.checkRecordPermission();
-        this.checkCameraPermission();
     }
 
     start(setup) {
@@ -46,12 +38,8 @@ class InCallManager {
     }
 
     async getIsWiredHeadsetPluggedIn() {
-        if (Platform.OS === 'ios') {
-            return await _InCallManager.getIsWiredHeadsetPluggedIn();
-        } else {
-            console.log("Android doesn't support getIsWiredHeadsetPluggedIn() yet.");
-            return null;
-        }
+        let isPluggedIn = await _InCallManager.getIsWiredHeadsetPluggedIn();
+        return { isWiredHeadsetPluggedIn: isPluggedIn };
     }
 
     setFlashOn(enable, brightness) {
@@ -110,36 +98,21 @@ class InCallManager {
         _InCallManager.stopRingtone();
     }
 
+    startProximitySensor() {
+        _InCallManager.startProximitySensor();
+    }
+  
+    stopProximitySensor() {
+        _InCallManager.stopProximitySensor();
+    }
+
+    startRingback(ringback) {
+        ringback = (typeof ringback === 'string') ? ringback : "_DTMF_";
+        _InCallManager.startRingback(ringback);
+    }
+
     stopRingback() {
         _InCallManager.stopRingback();
-    }
-
-    async checkRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.checkRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
-    async requestRecordPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.requestRecordPermission();
-        this.recordPermission = result;
-        return result;
-    }
-
-    async checkCameraPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.checkCameraPermission();
-        this.cameraPermission = result;
-        return result;
-    }
-
-    async requestCameraPermission() {
-        // --- on android which api < 23, it will always be "granted"
-        let result = await _InCallManager.requestCameraPermission();
-        this.cameraPermission = result;
-        return result;
     }
 
     pokeScreen(_timeout) {
@@ -175,6 +148,22 @@ class InCallManager {
     async chooseAudioRoute(route) {
         let result = await _InCallManager.chooseAudioRoute(route);
         return result;
+    }
+
+    async requestAudioFocus() {
+        if (Platform.OS === 'android') {
+            return await _InCallManager.requestAudioFocusJS();
+        } else {
+            console.log("ios doesn't support requestAudioFocus()");
+        }
+    }
+
+    async abandonAudioFocus() {
+        if (Platform.OS === 'android') {
+            return await _InCallManager.abandonAudioFocusJS();
+        } else {
+            console.log("ios doesn't support requestAudioFocus()");
+        }
     }
 }
 

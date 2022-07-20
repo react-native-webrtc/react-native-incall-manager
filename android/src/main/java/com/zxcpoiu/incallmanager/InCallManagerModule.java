@@ -22,20 +22,19 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
-import android.Manifest.permission;
-//import android.media.AudioAttributes; // --- for API 21+
-import android.media.AudioManager;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
 import android.net.Uri;
 import android.os.PowerManager;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+import androidx.annotation.Nullable;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
@@ -66,11 +65,9 @@ import java.util.Set;
 
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCBluetoothManager;
 
-public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener, AudioManager.OnAudioFocusChangeListener {
     private static final String REACT_NATIVE_MODULE_NAME = "InCallManager";
     private static final String TAG = REACT_NATIVE_MODULE_NAME;
-    private static SparseArray<Promise> mRequestPermissionCodePromises;
-    private static SparseArray<String> mRequestPermissionCodeTargetPermission;
     private String mPackageName = "com.zxcpoiu.incallmanager";
 
     // --- Screen Manager
@@ -82,6 +79,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private AudioManager audioManager;
     private boolean audioManagerActivated = false;
     private boolean isAudioFocused = false;
+    //private final Object mAudioFocusLock = new Object();
     private boolean isOrigAudioSetupStored = false;
     private boolean origIsSpeakerPhoneOn = false;
     private boolean origIsMicrophoneMute = false;
@@ -96,7 +94,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private BroadcastReceiver wiredHeadsetReceiver;
     private BroadcastReceiver noisyAudioReceiver;
     private BroadcastReceiver mediaButtonReceiver;
-    private OnFocusChangeListener mOnFocusChangeListener;
+    private AudioAttributes mAudioAttributes;
+    private AudioFocusRequest mAudioFocusRequest;
 
     // --- same as: RingtoneManager.getActualDefaultRingtoneUri(reactContext, RingtoneManager.TYPE_RINGTONE);
     private Uri defaultRingtoneUri = Settings.System.DEFAULT_RINGTONE_URI;
@@ -112,8 +111,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private MyPlayerInterface mBusytone;
     private Handler mRingtoneCountDownHandler;
     private String media = "audio";
-    private static String recordPermission = "unknow";
-    private static String cameraPermission = "unknow";
 
     private static final String SPEAKERPHONE_AUTO = "auto";
     private static final String SPEAKERPHONE_TRUE = "true";
@@ -158,7 +155,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private final String useSpeakerphone = SPEAKERPHONE_AUTO;
 
     // Handles all tasks related to Bluetooth headset devices.
-    private final AppRTCBluetoothManager bluetoothManager;
+    private AppRTCBluetoothManager bluetoothManager = null;
 
     private final InCallProximityManager proximityManager;
 
@@ -167,9 +164,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     // Contains a list of available audio devices. A Set collection is used to
     // avoid duplicate elements.
     private Set<AudioDevice> audioDevices = new HashSet<>();
-
-    // Callback method for changes in audio focus.
-    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
 
     interface MyPlayerInterface {
         public boolean isPlaying();
@@ -196,12 +190,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         audioUriMap.put("bundleRingtoneUri", bundleRingtoneUri);
         audioUriMap.put("bundleRingbackUri", bundleRingbackUri);
         audioUriMap.put("bundleBusytoneUri", bundleBusytoneUri);
-        mRequestPermissionCodePromises = new SparseArray<Promise>();
-        mRequestPermissionCodeTargetPermission = new SparseArray<String>();
-        mOnFocusChangeListener = new OnFocusChangeListener();
-        bluetoothManager = AppRTCBluetoothManager.create(reactContext, this);
-        proximityManager = InCallProximityManager.create(reactContext, this);
         wakeLockUtils = new InCallWakeLockUtils(reactContext);
+        proximityManager = InCallProximityManager.create(reactContext, this);
+
+        UiThreadUtil.runOnUiThread(() -> {
+            bluetoothManager = AppRTCBluetoothManager.create(reactContext, this);
+        });
 
         Log.d(TAG, "InCallManager initialized");
     }
@@ -278,7 +272,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if (ACTION_HEADSET_PLUG.equals(intent.getAction())) {
-                        hasWiredHeadset = true;
+                        hasWiredHeadset = intent.getIntExtra("state", 0) == 1;
                         updateAudioRoute();
                         String deviceName = intent.getStringExtra("name");
                         if (deviceName == null) {
@@ -422,8 +416,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         sendEvent("Proximity", data);
     }
 
-
-    private void startProximitySensor() {
+    @ReactMethod
+    public void startProximitySensor() {
         if (!proximityManager.isProximitySupported()) {
             Log.d(TAG, "Proximity Sensor is not supported.");
             return;
@@ -441,7 +435,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         isProximityRegistered = true;
     }
 
-    private void stopProximitySensor() {
+    @ReactMethod
+    public void stopProximitySensor() {
         if (!proximityManager.isProximitySupported()) {
             Log.d(TAG, "Proximity Sensor is not supported.");
             return;
@@ -455,45 +450,46 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         isProximityRegistered = false;
     }
 
-    private class OnFocusChangeListener implements AudioManager.OnAudioFocusChangeListener {
-
-        @Override
-        public void onAudioFocusChange(final int focusChange) {
-            String focusChangeStr;
-            switch (focusChange) {
-                case AudioManager.AUDIOFOCUS_GAIN:
-                    focusChangeStr = "AUDIOFOCUS_GAIN";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE";
-                    break;
-                case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
-                    focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS:
-                    focusChangeStr = "AUDIOFOCUS_LOSS";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                    focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT";
-                    break;
-                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                    focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
-                    break;
-                default:
-                    focusChangeStr = "AUDIOFOCUS_UNKNOW";
-                    break;
-            }
-
-            Log.d(TAG, "onAudioFocusChange: " + focusChange + " - " + focusChangeStr);
-
-            WritableMap data = Arguments.createMap();
-            data.putString("eventText", focusChangeStr);
-            data.putInt("eventCode", focusChange);
-            sendEvent("onAudioFocusChange", data);
+    // --- see: https://developer.android.com/reference/android/media/AudioManager
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+        String focusChangeStr;
+        switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_GAIN:
+                focusChangeStr = "AUDIOFOCUS_GAIN";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE";
+                break;
+            case AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
+                focusChangeStr = "AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS:
+                focusChangeStr = "AUDIOFOCUS_LOSS";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT";
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                focusChangeStr = "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK";
+                break;
+            case AudioManager.AUDIOFOCUS_NONE:
+                focusChangeStr = "AUDIOFOCUS_NONE";
+                break;
+            default:
+                focusChangeStr = "AUDIOFOCUS_UNKNOW";
+                break;
         }
+
+        Log.d(TAG, "onAudioFocusChange(): " + focusChange + " - " + focusChangeStr);
+
+        WritableMap data = Arguments.createMap();
+        data.putString("eventText", focusChangeStr);
+        data.putInt("eventCode", focusChange);
+        sendEvent("onAudioFocusChange", data);
     }
 
     /*
@@ -573,7 +569,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             storeOriginalAudioSetup();
             requestAudioFocus();
             startEvents();
-            bluetoothManager.start();
+            UiThreadUtil.runOnUiThread(() -> {
+                bluetoothManager.start();
+            });
             // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
             //getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
             audioManager.setMode(defaultAudioMode);
@@ -612,9 +610,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 setSpeakerphoneOn(false);
                 setMicrophoneMute(false);
                 forceSpeakerOn = 0;
-                bluetoothManager.stop();
+                UiThreadUtil.runOnUiThread(() -> {
+                    bluetoothManager.stop();
+                });
                 restoreOriginalAudioSetup();
-                releaseAudioFocus();
+                abandonAudioFocus();
                 audioManagerActivated = false;
             }
             wakeLockUtils.releasePartialWakeLock();
@@ -638,24 +638,144 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         // turnScreenOn();
     }
 
-    private void requestAudioFocus() {
-        if (!isAudioFocused) {
-            int result = audioManager.requestAudioFocus(mOnFocusChangeListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN);
-            if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                Log.d(TAG, "AudioFocus granted");
-                isAudioFocused = true;
-            } else if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
-                Log.d(TAG, "AudioFocus failed");
-                isAudioFocused = false;
-            }
-        }
+    @ReactMethod
+    public void requestAudioFocusJS(Promise promise) {
+        promise.resolve(requestAudioFocus());
     }
 
-    private void releaseAudioFocus() {
+    private String requestAudioFocus() {
+        String requestAudioFocusResStr = (android.os.Build.VERSION.SDK_INT >= 26)
+                ? requestAudioFocusV26()
+                : requestAudioFocusOld();
+        Log.d(TAG, "requestAudioFocus(): res = " + requestAudioFocusResStr);
+        return requestAudioFocusResStr;
+    }
+
+    private String requestAudioFocusV26() {
         if (isAudioFocused) {
-            audioManager.abandonAudioFocus(null);
-            isAudioFocused = false;
+            return "";
         }
+
+        if (mAudioAttributes == null) {
+            mAudioAttributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build();
+        }
+
+        if (mAudioFocusRequest == null) {
+            mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(mAudioAttributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setWillPauseWhenDucked(false)
+                    .setOnAudioFocusChangeListener(this)
+                    .build();
+        }
+
+        int requestAudioFocusRes = audioManager.requestAudioFocus(mAudioFocusRequest);
+
+        String requestAudioFocusResStr;
+        switch (requestAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = true;
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_DELAYED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_DELAYED";
+                break;
+            default:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
+        return requestAudioFocusResStr;
+    }
+
+    private String requestAudioFocusOld() {
+        if (isAudioFocused) {
+            return "";
+        }
+
+        int requestAudioFocusRes = audioManager.requestAudioFocus(this, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+
+        String requestAudioFocusResStr;
+        switch (requestAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = true;
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                requestAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
+        return requestAudioFocusResStr;
+    }
+
+    @ReactMethod
+    public void abandonAudioFocusJS(Promise promise) {
+        promise.resolve(abandonAudioFocus());
+    }
+
+    private String abandonAudioFocus() {
+        String abandonAudioFocusResStr = (android.os.Build.VERSION.SDK_INT >= 26)
+                ? abandonAudioFocusV26()
+                : abandonAudioFocusOld();
+        Log.d(TAG, "abandonAudioFocus(): res = " + abandonAudioFocusResStr);
+        return abandonAudioFocusResStr;
+    }
+
+    private String abandonAudioFocusV26() {
+        if (!isAudioFocused || mAudioFocusRequest == null) {
+            return "";
+        }
+
+        int abandonAudioFocusRes = audioManager.abandonAudioFocusRequest(mAudioFocusRequest);
+        String abandonAudioFocusResStr;
+        switch (abandonAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = false;
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
+        return abandonAudioFocusResStr;
+    }
+
+    private String abandonAudioFocusOld() {
+        if (!isAudioFocused) {
+            return "";
+        }
+
+        int abandonAudioFocusRes = audioManager.abandonAudioFocus(this);
+
+        String abandonAudioFocusResStr;
+        switch (abandonAudioFocusRes) {
+            case AudioManager.AUDIOFOCUS_REQUEST_FAILED:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_FAILED";
+                break;
+            case AudioManager.AUDIOFOCUS_REQUEST_GRANTED:
+                isAudioFocused = false;
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_GRANTED";
+                break;
+            default:
+                abandonAudioFocusResStr = "AUDIOFOCUS_REQUEST_UNKNOWN";
+                break;
+        }
+
+        return abandonAudioFocusResStr;
     }
 
     @ReactMethod
@@ -793,50 +913,57 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
      * This is part of start() process. 
      * ringbackUriType must not empty. empty means do not play.
      */
+    @ReactMethod
     public void startRingback(final String ringbackUriType) {
         if (ringbackUriType.isEmpty()) {
             return;
         }
         try {
             Log.d(TAG, "startRingback(): UriType=" + ringbackUriType);
+
             if (mRingback != null) {
                 if (mRingback.isPlaying()) {
                     Log.d(TAG, "startRingback(): is already playing");
                     return;
-                } else {
-                    stopRingback(); // --- use brandnew instance
                 }
+
+                stopRingback(); // --- use brandnew instance
             }
 
             Uri ringbackUri;
             Map data = new HashMap<String, Object>();
             data.put("name", "mRingback");
+
+            // --- use ToneGenerator instead file uri
             if (ringbackUriType.equals("_DTMF_")) {
                 mRingback = new myToneGenerator(myToneGenerator.RINGBACK);
                 mRingback.startPlay(data);
                 return;
-            } else {
-                ringbackUri = getRingbackUri(ringbackUriType);
-                if (ringbackUri == null) {
-                    Log.d(TAG, "startRingback(): no available media");
-                    return;    
-                }
+            }
+
+            ringbackUri = getRingbackUri(ringbackUriType);
+            if (ringbackUri == null) {
+                Log.d(TAG, "startRingback(): no available media");
+                return;    
             }
 
             mRingback = new myMediaPlayer();
             data.put("sourceUri", ringbackUri);
             data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_MUSIC);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION); // USAGE_VOICE_COMMUNICATION_SIGNALLING ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH); // CONTENT_TYPE_MUSIC ?
-            */
+
+            // TODO: Check if these changes are working correctly - we've set AudioManager.STREAM_MUSIC before so that ringtone volume can be set with music setting
+
+            //data.put("audioStream", AudioManager.STREAM_MUSIC); // --- lagacy
+            // --- The ringback doesn't have to be a DTMF.
+            // --- Should use VOICE_COMMUNICATION for sound during call or it may be silenced.
+            data.put("audioUsage", AudioAttributes.USAGE_MEDIA);
+            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
+
             setMediaPlayerEvents((MediaPlayer)mRingback, "mRingback");
+
             mRingback.startPlay(data);
         } catch(Exception e) {
-            Log.d(TAG, "startRingback() failed");
+            Log.d(TAG, "startRingback() failed", e);
         }   
     }
 
@@ -868,47 +995,39 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 if (mBusytone.isPlaying()) {
                     Log.d(TAG, "startBusytone(): is already playing");
                     return false;
-                } else {
-                    stopBusytone(); // --- use brandnew instance
                 }
+
+                stopBusytone(); // --- use brandnew instance
             }
 
             Uri busytoneUri;
             Map data = new HashMap<String, Object>();
             data.put("name", "mBusytone");
+
+            // --- use ToneGenerator instead file uri
             if (busytoneUriType.equals("_DTMF_")) {
                 mBusytone = new myToneGenerator(myToneGenerator.BUSY);
                 mBusytone.startPlay(data);
                 return true;
-            } else {
-                busytoneUri = getBusytoneUri(busytoneUriType);
-                if (busytoneUri == null) {
-                    Log.d(TAG, "startBusytone(): no available media");
-                    return false;    
-                }
+            }
+
+            busytoneUri = getBusytoneUri(busytoneUriType);
+            if (busytoneUri == null) {
+                Log.d(TAG, "startBusytone(): no available media");
+                return false;    
             }
 
             mBusytone = new myMediaPlayer();
+
             data.put("sourceUri", busytoneUri);
             data.put("setLooping", false);
-            data.put("audioStream", AudioManager.STREAM_MUSIC);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-            data.put("audioUsage", AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING); // USAGE_VOICE_COMMUNICATION ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_SPEECH);
-            */
-            setMediaPlayerEvents((MediaPlayer)mBusytone, "mBusytone");
-            mBusytone.startPlay(data);
             return true;
         } catch(Exception e) {
-            Log.d(TAG, "startBusytone() failed");
-            Log.d(TAG, e.getMessage());
+            Log.d(TAG, "startBusytone() failed", e);
             return false;
         }   
     }
 
-    public void stopBusytone() {
         try {
             if (mBusytone != null) {
                 mBusytone.stopPlay();
@@ -921,90 +1040,112 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     @ReactMethod
     public void startRingtone(final String ringtoneUriType, final int seconds) {
-        try {
-            Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
-            if (mRingtone != null) {
-                if (mRingtone.isPlaying()) {
-                    Log.d(TAG, "startRingtone(): is already playing");
-                    return;
-                } else {
-                    stopRingtone(); // --- use brandnew instance
-                }
-            }
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Looper.prepare();
 
-            //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
-            //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
-            
-            // enna Dock App should play Ringtone regardless of mute state
-            // if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
-            //     Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
-            //     return;
-            // }
-
-            // --- there is no _DTMF_ option in startRingtone()
-            Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
-            if (ringtoneUri == null) {
-                Log.d(TAG, "startRingtone(): no available media");
-                return;    
-            }
-
-            if (audioManagerActivated) {
-                stop();
-            }
-
-            wakeLockUtils.acquirePartialWakeLock();
-
-            storeOriginalAudioSetup();
-            Map data = new HashMap<String, Object>();
-            mRingtone = new myMediaPlayer();
-            data.put("name", "mRingtone");
-            data.put("sourceUri", ringtoneUri);
-            data.put("setLooping", true);
-            data.put("audioStream", AudioManager.STREAM_MUSIC);
-            /*
-            TODO: for API 21
-            data.put("audioFlag", 0);
-            data.put("audioUsage", AudioAttributes.USAGE_NOTIFICATION_RINGTONE); // USAGE_NOTIFICATION_COMMUNICATION_REQUEST ?
-            data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
-            */
-            setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
-            mRingtone.startPlay(data);
-
-            if (seconds > 0) {
-                mRingtoneCountDownHandler = new Handler();
-                mRingtoneCountDownHandler.postDelayed(new Runnable() {
-                    public void run() {
-                        try {
-                            Log.d(TAG, String.format("mRingtoneCountDownHandler.stopRingtone() timeout after %d seconds", seconds));
-                            stopRingtone();
-                        } catch(Exception e) {
-                            Log.d(TAG, "mRingtoneCountDownHandler.stopRingtone() failed.");
+                    Log.d(TAG, "startRingtone(): UriType=" + ringtoneUriType);
+                    if (mRingtone != null) {
+                        if (mRingtone.isPlaying()) {
+                            Log.d(TAG, "startRingtone(): is already playing");
+                            return;
+                        } else {
+                            stopRingtone(); // --- use brandnew instance
                         }
                     }
-                }, seconds * 1000);
+
+                    //if (!audioManager.isStreamMute(AudioManager.STREAM_RING)) {
+                    //if (origRingerMode == AudioManager.RINGER_MODE_NORMAL) {
+
+                    // enna Dock App should play Ringtone regardless of mute state
+                    
+                    // if (audioManager.getStreamVolume(AudioManager.STREAM_RING) == 0) {
+                    //     Log.d(TAG, "startRingtone(): ringer is silent. leave without play.");
+                    //     return;
+                    // }
+
+                    // --- there is no _DTMF_ option in startRingtone()
+                    Uri ringtoneUri = getRingtoneUri(ringtoneUriType);
+                    if (ringtoneUri == null) {
+                        Log.d(TAG, "startRingtone(): no available media");
+                        return;
+                    }
+
+                    if (audioManagerActivated) {
+                        InCallManagerModule.this.stop();
+                    }
+
+                    wakeLockUtils.acquirePartialWakeLock();
+
+                    storeOriginalAudioSetup();
+                    Map data = new HashMap<String, Object>();
+                    mRingtone = new myMediaPlayer();
+
+                    data.put("name", "mRingtone");
+                    data.put("sourceUri", ringtoneUri);
+                    data.put("setLooping", true);
+
+                    //data.put("audioStream", AudioManager.STREAM_RING); // --- lagacy
+
+                    // FIXME: Before AudioManager was set to STREAM_RING, now AudioAttributes.USAGE_MEDIA instead of AudioAttributes.USAGE_NOTIFICATION_RINGTONE ?
+
+                    data.put("audioUsage", AudioAttributes.USAGE_MEDIA); // --- USAGE_NOTIFICATION_COMMUNICATION_REQUEST?
+                    data.put("audioContentType", AudioAttributes.CONTENT_TYPE_MUSIC);
+
+                    setMediaPlayerEvents((MediaPlayer) mRingtone, "mRingtone");
+
+                    mRingtone.startPlay(data);
+
+                    if (seconds > 0) {
+                        mRingtoneCountDownHandler = new Handler();
+                        mRingtoneCountDownHandler.postDelayed(new Runnable() {
+                            public void run() {
+                                try {
+                                    Log.d(TAG, String.format("mRingtoneCountDownHandler.stopRingtone() timeout after %d seconds", seconds));
+                                    stopRingtone();
+                                } catch(Exception e) {
+                                    Log.d(TAG, "mRingtoneCountDownHandler.stopRingtone() failed.");
+                                }
+                            }
+                        }, seconds * 1000);
+                    }
+
+                    Looper.loop();
+                } catch(Exception e) {
+                    wakeLockUtils.releasePartialWakeLock();
+                    Log.e(TAG, "startRingtone() failed", e);
+                }
             }
-        } catch(Exception e) {
-            wakeLockUtils.releasePartialWakeLock();
-            Log.d(TAG, "startRingtone() failed");
-        }   
+        };
+
+        thread.start();
     }
 
     @ReactMethod
     public void stopRingtone() {
-        try {
-            if (mRingtone != null) {
-                mRingtone.stopPlay();
-                mRingtone = null;
-                restoreOriginalAudioSetup();
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    if (mRingtone != null) {
+                        mRingtone.stopPlay();
+                        mRingtone = null;
+                        restoreOriginalAudioSetup();
+                    }
+                    if (mRingtoneCountDownHandler != null) {
+                        mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
+                        mRingtoneCountDownHandler = null;
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "stopRingtone() failed");
+                }
+                wakeLockUtils.releasePartialWakeLock();
             }
-            if (mRingtoneCountDownHandler != null) {
-                mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
-                mRingtoneCountDownHandler = null;
-            }
-        } catch(Exception e) {
-            Log.d(TAG, "stopRingtone() failed");
-        }   
-        wakeLockUtils.releasePartialWakeLock();
+        };
+
+        thread.start();
     }
 
     private void setMediaPlayerEvents(MediaPlayer mp, final String name) {
@@ -1338,10 +1479,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private class myMediaPlayer extends MediaPlayer implements MyPlayerInterface {
 
-        //myMediaPlayer() {
-        //    super();
-        //}
-
         @Override
         public void stopPlay() {
             stop();
@@ -1352,38 +1489,24 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         @Override
         public void startPlay(final Map data) {
             try {
-                Uri sourceUri = (Uri) data.get("sourceUri");
-                boolean setLooping = (Boolean) data.get("setLooping");
-                int stream = (Integer) data.get("audioStream");
-                String name = (String) data.get("name");
-
                 ReactContext reactContext = getReactApplicationContext();
-                setDataSource(reactContext, sourceUri);
-                setLooping(setLooping);
-                setAudioStreamType(stream); // is better using STREAM_DTMF for ToneGenerator?
 
-                /*
-                // TODO: use modern and more explicit audio stream api
-                if (android.os.Build.VERSION.SDK_INT >= 21) {
-                    int audioFlag = (Integer) data.get("audioFlag");
-                    int audioUsage = (Integer) data.get("audioUsage");
-                    int audioContentType = (Integer) data.get("audioContentType");
+                setDataSource(reactContext, (Uri) data.get("sourceUri"));
+                setLooping((Boolean) data.get("setLooping"));
 
-                    setAudioAttributes(
-                        new AudioAttributes.Builder()
-                            .setFlags(audioFlag)
-                            .setLegacyStreamType(stream)
-                            .setUsage(audioUsage)
-                            .setContentType(audioContentType)
-                            .build()
-                    );
-                }
-                */
+                // --- the `minSdkVersion` is 21 since RN 64,
+                // --- if you want to suuport api < 21, comment out `setAudioAttributes` and use `setAudioStreamType((Integer) data.get("audioStream"))` instead
+                setAudioAttributes(
+                    new AudioAttributes.Builder()
+                        .setUsage((Integer) data.get("audioUsage"))
+                        .setContentType((Integer) data.get("audioContentType"))
+                        .build()
+                );
 
                 // -- will start at onPrepared() event
                 prepareAsync();
             } catch (Exception e) {
-                Log.d(TAG, "startPlay() failed");
+                Log.d(TAG, "startPlay() failed", e);
             }
         }
 
@@ -1393,79 +1516,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
     }
 // ===== Internal Classes End =====
-
-//  ===== Permission Start =====
-    @ReactMethod
-    public void checkRecordPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.checkRecordPermission(): enter");
-        _checkRecordPermission();
-        if (recordPermission.equals("unknow")) {
-            Log.d(TAG, "RNInCallManager.checkRecordPermission(): failed");
-            promise.reject(new Exception("checkRecordPermission failed"));
-        } else {
-            promise.resolve(recordPermission);
-        }
-    }
-
-    @ReactMethod
-    public void checkCameraPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.checkCameraPermission(): enter");
-        _checkCameraPermission();
-        if (cameraPermission.equals("unknow")) {
-            Log.d(TAG, "RNInCallManager.checkCameraPermission(): failed");
-            promise.reject(new Exception("checkCameraPermission failed"));
-        } else {
-            promise.resolve(cameraPermission);
-        }
-    }
-
-    private void _checkRecordPermission() {
-        recordPermission = _checkPermission(permission.RECORD_AUDIO);
-        Log.d(TAG, String.format("RNInCallManager.checkRecordPermission(): recordPermission=%s", recordPermission));
-    }
-
-    private void _checkCameraPermission() {
-        cameraPermission = _checkPermission(permission.CAMERA);
-        Log.d(TAG, String.format("RNInCallManager.checkCameraPermission(): cameraPermission=%s", cameraPermission));
-    }
-
-    private String _checkPermission(String targetPermission) {
-        try {
-            ReactContext reactContext = getReactApplicationContext();
-            if (ContextCompat.checkSelfPermission(reactContext, targetPermission) == PackageManager.PERMISSION_GRANTED) {
-                return "granted";
-            } else {
-                return "denied";
-            }
-        } catch (Exception e) {
-            Log.d(TAG, "_checkPermission() catch");
-            return "denied";
-        }
-    }
-
-    @ReactMethod
-    public void requestRecordPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.requestRecordPermission(): enter");
-        _checkRecordPermission();
-        if (!recordPermission.equals("granted")) {
-            _requestPermission(permission.RECORD_AUDIO, promise);
-        } else {
-            // --- already granted
-            promise.resolve(recordPermission);
-        }
-    }
-
-    @ReactMethod
-    public void requestCameraPermission(Promise promise) {
-        Log.d(TAG, "RNInCallManager.requestCameraPermission(): enter");
-        _checkCameraPermission();
-        if (!cameraPermission.equals("granted")) {
-            _requestPermission(permission.CAMERA, promise);
-        } else {
-            // --- already granted
-            promise.resolve(cameraPermission);
-        }
-    }
 
     @ReactMethod
     public void chooseAudioRoute(String audioRoute, Promise promise) {
@@ -1483,33 +1533,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         promise.resolve(getAudioDeviceStatusMap());
     }
 
-    private void _requestPermission(String targetPermission, Promise promise) {
-        Activity currentActivity = getCurrentActivity();
-        if (currentActivity == null) {
-            Log.d(TAG, String.format("RNInCallManager._requestPermission(): ReactContext doesn't hava any Activity attached when requesting %s", targetPermission));
-            promise.reject(new Exception("_requestPermission(): currentActivity is not attached"));
-            return;
-        }
-        int requestPermissionCode = getRandomInteger(1, 99999999);
-        while (mRequestPermissionCodePromises.get(requestPermissionCode, null) != null) {
-            requestPermissionCode = getRandomInteger(1, 99999999);
-        }
-        mRequestPermissionCodePromises.put(requestPermissionCode, promise);
-        mRequestPermissionCodeTargetPermission.put(requestPermissionCode, targetPermission);
-        /*
-        if (ActivityCompat.shouldShowRequestPermissionRationale(currentActivity, permission.RECORD_AUDIO)) {
-            showMessageOKCancel("You need to allow access to microphone for making call", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    ActivityCompat.requestPermissions(currentActivity, new String[] {permission.RECORD_AUDIO}, requestPermissionCode);
-                }
-            });
-            return;
-        }
-        */
-        ActivityCompat.requestPermissions(currentActivity, new String[] {targetPermission}, requestPermissionCode);
-    }
-
     private static int getRandomInteger(int min, int max) {
         if (min >= max) {
             throw new IllegalArgumentException("max must be greater than min");
@@ -1517,47 +1540,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         Random random = new Random();
         return random.nextInt((max - min) + 1) + min;
     }
-
-    protected static void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        Log.d(TAG, "RNInCallManager.onRequestPermissionsResult(): enter");
-        Promise promise = mRequestPermissionCodePromises.get(requestCode, null);
-        String targetPermission = mRequestPermissionCodeTargetPermission.get(requestCode, null);
-        mRequestPermissionCodePromises.delete(requestCode);
-        mRequestPermissionCodeTargetPermission.delete(requestCode);
-        if (promise != null && targetPermission != null) {
-
-            Map<String, Integer> permissionResultMap = new HashMap<String, Integer>();
-
-            for (int i = 0; i < permissions.length; i++) {
-                permissionResultMap.put(permissions[i], grantResults[i]);
-            }
-
-            if (!permissionResultMap.containsKey(targetPermission)) {
-                Log.wtf(TAG, String.format("RNInCallManager.onRequestPermissionsResult(): requested permission %s but did not appear", targetPermission));
-                promise.reject(String.format("%s_PERMISSION_NOT_FOUND", targetPermission), String.format("requested permission %s but did not appear", targetPermission));
-                return;
-            }
-
-            String _requestPermissionResult = "unknow";
-            if (permissionResultMap.get(targetPermission) == PackageManager.PERMISSION_GRANTED) {
-                _requestPermissionResult = "granted";
-            } else {
-                _requestPermissionResult = "denied";
-            }
-
-            if (targetPermission.equals(permission.RECORD_AUDIO)) {
-                recordPermission = _requestPermissionResult;
-            } else if (targetPermission.equals(permission.CAMERA)) {
-                cameraPermission = _requestPermissionResult;
-            }
-            promise.resolve(_requestPermissionResult);
-        } else {
-            //super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-            Log.wtf(TAG, "RNInCallManager.onRequestPermissionsResult(): request code not found");
-            promise.reject("PERMISSION_REQUEST_CODE_NOT_FOUND", "request code not found");
-        }
-    }
-//  ===== Permission End =====
 
     private void pause() {
         if (audioManagerActivated) {
@@ -1743,116 +1725,125 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 } else if (type == AudioDeviceInfo.TYPE_USB_DEVICE) {
                     Log.d(TAG, "hasWiredHeadset: found USB audio device");
                     return true;
+                } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
+                    Log.d(TAG, "hasWiredHeadset: found wired headphones");
+                    return true;
                 }
             }
             return false;
         }
     }
 
+    @ReactMethod
+    public void getIsWiredHeadsetPluggedIn(Promise promise) {
+        promise.resolve(this.hasWiredHeadset());
+    }
 
     /**
      * Updates list of possible audio devices and make new device selection.
      */
     public void updateAudioDeviceState() {
-        Log.d(TAG, "--- updateAudioDeviceState: "
-                        + "wired headset=" + hasWiredHeadset + ", "
-                        + "BT state=" + bluetoothManager.getState());
-        Log.d(TAG, "Device status: "
-                        + "available=" + audioDevices + ", "
-                        + "selected=" + selectedAudioDevice + ", "
-                        + "user selected=" + userSelectedAudioDevice);
-
-        // Check if any Bluetooth headset is connected. The internal BT state will
-        // change accordingly.
-        // TODO(henrika): perhaps wrap required state into BT manager.
-        if (bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE
-                || bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_UNAVAILABLE
-                || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_DISCONNECTING) {
-            bluetoothManager.updateDevice();
-        }
-
-        // Update the set of available audio devices.
-        Set<AudioDevice> newAudioDevices = new HashSet<>();
-
-        // always assume device has speaker phone
-        newAudioDevices.add(AudioDevice.SPEAKER_PHONE);
-
-        if (bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTED
-                || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTING
-                || bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE) {
-            newAudioDevices.add(AudioDevice.BLUETOOTH);
-        }
-
-        if (hasWiredHeadset) {
-            newAudioDevices.add(AudioDevice.WIRED_HEADSET);
-        }
-
-        if (hasEarpiece()) {
-            newAudioDevices.add(AudioDevice.EARPIECE);
-        }
-
-        // --- check whether user selected audio device is available
-        if (userSelectedAudioDevice != null
-                && userSelectedAudioDevice != AudioDevice.NONE
-                && !newAudioDevices.contains(userSelectedAudioDevice)) {
-            userSelectedAudioDevice = AudioDevice.NONE;
-        }
-
-        // Store state which is set to true if the device list has changed.
-        boolean audioDeviceSetUpdated = !audioDevices.equals(newAudioDevices);
-        // Update the existing audio device set.
-        audioDevices = newAudioDevices;
-
-        AudioDevice newAudioDevice = getPreferredAudioDevice();
-
-        // --- stop bluetooth if needed
-        if (selectedAudioDevice == AudioDevice.BLUETOOTH
-                && newAudioDevice != AudioDevice.BLUETOOTH
-                && (bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTED
-                    || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTING)
-                ) {
-            bluetoothManager.stopScoAudio();
-            bluetoothManager.updateDevice();
-        }
-
-        // --- start bluetooth if needed
-        if (selectedAudioDevice != AudioDevice.BLUETOOTH
-                && newAudioDevice == AudioDevice.BLUETOOTH
-                && bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE) {
-            // Attempt to start Bluetooth SCO audio (takes a few second to start).
-            if (!bluetoothManager.startScoAudio()) {
-                // Remove BLUETOOTH from list of available devices since SCO failed.
-                audioDevices.remove(AudioDevice.BLUETOOTH);
-                audioDeviceSetUpdated = true;
-                if (userSelectedAudioDevice == AudioDevice.BLUETOOTH) {
-                    userSelectedAudioDevice = AudioDevice.NONE;
-                }
-                newAudioDevice = getPreferredAudioDevice();
-            }
-        }
-        
-        if (newAudioDevice == AudioDevice.BLUETOOTH
-                && bluetoothManager.getState() != AppRTCBluetoothManager.State.SCO_CONNECTED) {
-            newAudioDevice = getPreferredAudioDevice(true); // --- skip bluetooth
-        }
-
-        // Switch to new device but only if there has been any changes.
-        if (newAudioDevice != selectedAudioDevice || audioDeviceSetUpdated) {
-
-            // Do the required device switch.
-            setAudioDeviceInternal(newAudioDevice);
-            Log.d(TAG, "New device status: "
+        UiThreadUtil.runOnUiThread(() -> {
+            Log.d(TAG, "--- updateAudioDeviceState: "
+                            + "wired headset=" + hasWiredHeadset + ", "
+                            + "BT state=" + bluetoothManager.getState());
+            Log.d(TAG, "Device status: "
                             + "available=" + audioDevices + ", "
-                            + "selected=" + newAudioDevice);
-            /*
-            if (audioManagerEvents != null) {
-                // Notify a listening client that audio device has been changed.
-                audioManagerEvents.onAudioDeviceChanged(selectedAudioDevice, audioDevices);
+                            + "selected=" + selectedAudioDevice + ", "
+                            + "user selected=" + userSelectedAudioDevice);
+
+            // Check if any Bluetooth headset is connected. The internal BT state will
+            // change accordingly.
+            // TODO(henrika): perhaps wrap required state into BT manager.
+            if (bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE
+                    || bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_UNAVAILABLE
+                    || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_DISCONNECTING) {
+                bluetoothManager.updateDevice();
             }
-            */
-            sendEvent("onAudioDeviceChanged", getAudioDeviceStatusMap());
-        }
-        Log.d(TAG, "--- updateAudioDeviceState done");
+
+            // Update the set of available audio devices.
+            Set<AudioDevice> newAudioDevices = new HashSet<>();
+
+            // always assume device has speaker phone
+            newAudioDevices.add(AudioDevice.SPEAKER_PHONE);
+
+            if (bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTED
+                    || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTING
+                    || bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE) {
+                newAudioDevices.add(AudioDevice.BLUETOOTH);
+            }
+
+            if (hasWiredHeadset) {
+                newAudioDevices.add(AudioDevice.WIRED_HEADSET);
+            }
+
+            if (hasEarpiece()) {
+                newAudioDevices.add(AudioDevice.EARPIECE);
+            }
+
+            // --- check whether user selected audio device is available
+            if (userSelectedAudioDevice != null
+                    && userSelectedAudioDevice != AudioDevice.NONE
+                    && !newAudioDevices.contains(userSelectedAudioDevice)) {
+                userSelectedAudioDevice = AudioDevice.NONE;
+            }
+
+            // Store state which is set to true if the device list has changed.
+            boolean audioDeviceSetUpdated = !audioDevices.equals(newAudioDevices);
+            // Update the existing audio device set.
+            audioDevices = newAudioDevices;
+
+            AudioDevice newAudioDevice = getPreferredAudioDevice();
+
+            // --- stop bluetooth if needed
+            if (selectedAudioDevice == AudioDevice.BLUETOOTH
+                    && newAudioDevice != AudioDevice.BLUETOOTH
+                    && (bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTED
+                        || bluetoothManager.getState() == AppRTCBluetoothManager.State.SCO_CONNECTING)
+                    ) {
+                bluetoothManager.stopScoAudio();
+                bluetoothManager.updateDevice();
+            }
+
+            // --- start bluetooth if needed
+            if (selectedAudioDevice != AudioDevice.BLUETOOTH
+                    && newAudioDevice == AudioDevice.BLUETOOTH
+                    && bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE) {
+                // Attempt to start Bluetooth SCO audio (takes a few second to start).
+                if (!bluetoothManager.startScoAudio()) {
+                    // Remove BLUETOOTH from list of available devices since SCO failed.
+                    audioDevices.remove(AudioDevice.BLUETOOTH);
+                    audioDeviceSetUpdated = true;
+                    if (userSelectedAudioDevice == AudioDevice.BLUETOOTH) {
+                        userSelectedAudioDevice = AudioDevice.NONE;
+                    }
+                    newAudioDevice = getPreferredAudioDevice();
+                }
+            }
+            
+            if (newAudioDevice == AudioDevice.BLUETOOTH
+                    && bluetoothManager.getState() != AppRTCBluetoothManager.State.SCO_CONNECTED) {
+                newAudioDevice = getPreferredAudioDevice(true); // --- skip bluetooth
+            }
+
+            // Switch to new device but only if there has been any changes.
+            if (newAudioDevice != selectedAudioDevice || audioDeviceSetUpdated) {
+
+                // Do the required device switch.
+                setAudioDeviceInternal(newAudioDevice);
+                Log.d(TAG, "New device status: "
+                                + "available=" + audioDevices + ", "
+                                + "selected=" + newAudioDevice);
+                /*
+                if (audioManagerEvents != null) {
+                    // Notify a listening client that audio device has been changed.
+                    audioManagerEvents.onAudioDeviceChanged(selectedAudioDevice, audioDevices);
+                }
+                */
+                sendEvent("onAudioDeviceChanged", getAudioDeviceStatusMap());
+            }
+            Log.d(TAG, "--- updateAudioDeviceState done");
+        });
     }
 
     private WritableMap getAudioDeviceStatusMap() {
@@ -1901,3 +1892,4 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         return newAudioDevice;
     }
 }
+
