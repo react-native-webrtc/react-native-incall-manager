@@ -27,6 +27,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.Runnable;
 
+import com.facebook.react.bridge.UiThreadUtil;
+
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCProximitySensor;
 
 public class InCallProximityManager {
@@ -46,14 +48,11 @@ public class InCallProximityManager {
         Log.d(TAG, "InCallProximityManager");
         checkProximitySupport(context);
         if (proximitySupported) {
-            proximitySensor = AppRTCProximitySensor.create(context,
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        inCallManager.onProximitySensorChangedState(proximitySensor.sensorReportsNearState());               
-                    }
-                }
-            );
+            UiThreadUtil.runOnUiThread(() -> {
+                proximitySensor = AppRTCProximitySensor.create(context, () -> {
+                    inCallManager.onProximitySensorChangedState(proximitySensor.sensorReportsNearState());               
+                });
+            });
         }
     }
 
@@ -108,11 +107,16 @@ public class InCallProximityManager {
         if (!proximitySupported) {
             return false;
         }
-        return proximitySensor.start();
+        UiThreadUtil.runOnUiThread(() -> {
+            proximitySensor.start();
+        });
+        return true;
     }
 
     public void stop() {
-        proximitySensor.stop();
+        UiThreadUtil.runOnUiThread(() -> {
+            proximitySensor.stop();
+        });
     }
 
     public boolean isProximitySupported() {

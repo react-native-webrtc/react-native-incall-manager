@@ -38,12 +38,8 @@ class InCallManager {
     }
 
     async getIsWiredHeadsetPluggedIn() {
-        if (Platform.OS === 'ios') {
-            return await _InCallManager.getIsWiredHeadsetPluggedIn();
-        } else {
-            console.log("Android doesn't support getIsWiredHeadsetPluggedIn() yet.");
-            return null;
-        }
+        let isPluggedIn = await _InCallManager.getIsWiredHeadsetPluggedIn();
+        return { isWiredHeadsetPluggedIn: isPluggedIn };
     }
 
     setFlashOn(enable, brightness) {

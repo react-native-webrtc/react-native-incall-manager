@@ -7,9 +7,7 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-
 package com.zxcpoiu.incallmanager.AppRTC;
-
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -21,27 +19,27 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
+import androidx.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
-
+import com.zxcpoiu.incallmanager.AppRTC.AppRTCUtils;
+import com.zxcpoiu.incallmanager.AppRTC.ThreadUtils;
 import com.zxcpoiu.incallmanager.InCallManagerModule;
-
 /**
  * AppRTCProximitySensor manages functions related to Bluetoth devices in the
  * AppRTC demo.
  */
 public class AppRTCBluetoothManager {
   private static final String TAG = "AppRTCBluetoothManager";
-
   // Timeout interval for starting or stopping audio to a Bluetooth SCO device.
   private static final int BLUETOOTH_SCO_TIMEOUT_MS = 4000;
   // Maximum number of SCO connection attempts.
   private static final int MAX_SCO_CONNECTION_ATTEMPTS = 2;
-
   // Bluetooth connection state.
   public enum State {
     // Bluetooth is not available; no adapter or Bluetooth is off.
@@ -61,20 +59,21 @@ public class AppRTCBluetoothManager {
     // Bluetooth audio SCO connection with remote device is established.
     SCO_CONNECTED
   }
-
   private final Context apprtcContext;
   private final InCallManagerModule apprtcAudioManager;
+  @Nullable
   private final AudioManager audioManager;
   private final Handler handler;
-
   int scoConnectionAttempts;
   private State bluetoothState;
   private final BluetoothProfile.ServiceListener bluetoothServiceListener;
+  @Nullable
   private BluetoothAdapter bluetoothAdapter;
+  @Nullable
   private BluetoothHeadset bluetoothHeadset;
+  @Nullable
   private BluetoothDevice bluetoothDevice;
   private final BroadcastReceiver bluetoothHeadsetReceiver;
-
   // Runs when the Bluetooth timeout expires. We use that timeout after calling
   // startScoAudio() or stopScoAudio() because we're not guaranteed to get a
   // callback after those calls.
@@ -84,7 +83,6 @@ public class AppRTCBluetoothManager {
       bluetoothTimeout();
     }
   };
-
   /**
    * Implementation of an interface that notifies BluetoothProfile IPC clients when they have been
    * connected to or disconnected from the service.
@@ -104,7 +102,6 @@ public class AppRTCBluetoothManager {
       updateAudioDeviceState();
       Log.d(TAG, "onServiceConnected done: BT state=" + bluetoothState);
     }
-
     @Override
     /** Notifies the client when the proxy object has been disconnected from the service. */
     public void onServiceDisconnected(int profile) {
@@ -120,7 +117,6 @@ public class AppRTCBluetoothManager {
       Log.d(TAG, "onServiceDisconnected done: BT state=" + bluetoothState);
     }
   }
-
   // Intent broadcast receiver which handles changes in Bluetooth device availability.
   // Detects headset changes and Bluetooth SCO state changes.
   private class BluetoothHeadsetBroadcastReceiver extends BroadcastReceiver {
@@ -188,15 +184,14 @@ public class AppRTCBluetoothManager {
       Log.d(TAG, "onReceive done: BT state=" + bluetoothState);
     }
   }
-
   /** Construction. */
   public static AppRTCBluetoothManager create(Context context, InCallManagerModule audioManager) {
-    Log.d(TAG, "create");
+    Log.d(TAG, "create" + AppRTCUtils.getThreadInfo());
     return new AppRTCBluetoothManager(context, audioManager);
   }
-
   protected AppRTCBluetoothManager(Context context, InCallManagerModule audioManager) {
     Log.d(TAG, "ctor");
+    ThreadUtils.checkIsOnMainThread();
     apprtcContext = context;
     apprtcAudioManager = audioManager;
     this.audioManager = getAudioManager(context);
@@ -205,12 +200,11 @@ public class AppRTCBluetoothManager {
     bluetoothHeadsetReceiver = new BluetoothHeadsetBroadcastReceiver();
     handler = new Handler(Looper.getMainLooper());
   }
-
   /** Returns the internal state. */
   public State getState() {
+    ThreadUtils.checkIsOnMainThread();
     return bluetoothState;
   }
-
   /**
    * Activates components required to detect Bluetooth devices and to enable
    * BT SCO (audio is routed via BT SCO) for the headset profile. The end
@@ -225,8 +219,10 @@ public class AppRTCBluetoothManager {
    * change.
    */
   public void start() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "start");
-    if (!hasPermission(apprtcContext, android.Manifest.permission.BLUETOOTH)) {
+    String p = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? android.Manifest.permission.BLUETOOTH_CONNECT : android.Manifest.permission.BLUETOOTH;
+    if (!hasPermission(apprtcContext, p)) {
       Log.w(TAG, "Process (pid=" + Process.myPid() + ") lacks BLUETOOTH permission");
       return;
     }
@@ -269,9 +265,9 @@ public class AppRTCBluetoothManager {
     bluetoothState = State.HEADSET_UNAVAILABLE;
     Log.d(TAG, "start done: BT state=" + bluetoothState);
   }
-
   /** Stops and closes all components related to Bluetooth audio. */
   public void stop() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "stop: BT state=" + bluetoothState);
     if (bluetoothAdapter == null) {
       return;
@@ -293,7 +289,6 @@ public class AppRTCBluetoothManager {
     bluetoothState = State.UNINITIALIZED;
     Log.d(TAG, "stop done: BT state=" + bluetoothState);
   }
-
   /**
    * Starts Bluetooth SCO connection with remote device.
    * Note that the phone application always has the priority on the usage of the SCO connection
@@ -308,6 +303,7 @@ public class AppRTCBluetoothManager {
    * accept SCO audio without a "call".
    */
   public boolean startScoAudio() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "startSco: BT state=" + bluetoothState + ", "
             + "attempts: " + scoConnectionAttempts + ", "
             + "SCO is on: " + isScoOn());
@@ -333,9 +329,9 @@ public class AppRTCBluetoothManager {
             + "SCO is on: " + isScoOn());
     return true;
   }
-
   /** Stops Bluetooth SCO connection with remote device. */
   public void stopScoAudio() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "stopScoAudio: BT state=" + bluetoothState + ", "
             + "SCO is on: " + isScoOn());
     if (bluetoothState != State.SCO_CONNECTING && bluetoothState != State.SCO_CONNECTED) {
@@ -348,12 +344,11 @@ public class AppRTCBluetoothManager {
     Log.d(TAG, "stopScoAudio done: BT state=" + bluetoothState + ", "
             + "SCO is on: " + isScoOn());
   }
-
   /**
    * Use the BluetoothHeadset proxy object (controls the Bluetooth Headset
    * Service via IPC) to update the list of connected devices for the HEADSET
    * profile. The internal state will change to HEADSET_UNAVAILABLE or to
-   * HEADSET_AVAILABLE and |bluetoothDevice| will be mapped to the connected
+   * HEADSET_AVAILABLE and `bluetoothDevice` will be mapped to the connected
    * device if available.
    */
   public void updateDevice() {
@@ -380,32 +375,27 @@ public class AppRTCBluetoothManager {
     }
     Log.d(TAG, "updateDevice done: BT state=" + bluetoothState);
   }
-
   /**
    * Stubs for test mocks.
    */
+  @Nullable
   protected AudioManager getAudioManager(Context context) {
     return (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
   }
-
   protected void registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
     apprtcContext.registerReceiver(receiver, filter);
   }
-
   protected void unregisterReceiver(BroadcastReceiver receiver) {
     apprtcContext.unregisterReceiver(receiver);
   }
-
   protected boolean getBluetoothProfileProxy(
       Context context, BluetoothProfile.ServiceListener listener, int profile) {
     return bluetoothAdapter.getProfileProxy(context, listener, profile);
   }
-
   protected boolean hasPermission(Context context, String permission) {
     return apprtcContext.checkPermission(permission, Process.myPid(), Process.myUid())
         == PackageManager.PERMISSION_GRANTED;
   }
-
   /** Logs the state of the local Bluetooth adapter. */
   @SuppressLint("HardwareIds")
   protected void logBluetoothAdapterInfo(BluetoothAdapter localAdapter) {
@@ -423,30 +413,30 @@ public class AppRTCBluetoothManager {
       }
     }
   }
-
   /** Ensures that the audio manager updates its list of available audio devices. */
   private void updateAudioDeviceState() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "updateAudioDeviceState");
     apprtcAudioManager.updateAudioDeviceState();
   }
-
   /** Starts timer which times out after BLUETOOTH_SCO_TIMEOUT_MS milliseconds. */
   private void startTimer() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "startTimer");
     handler.postDelayed(bluetoothTimeoutRunnable, BLUETOOTH_SCO_TIMEOUT_MS);
   }
-
   /** Cancels any outstanding timer tasks. */
   private void cancelTimer() {
+    ThreadUtils.checkIsOnMainThread();
     Log.d(TAG, "cancelTimer");
     handler.removeCallbacks(bluetoothTimeoutRunnable);
   }
-
   /**
    * Called when start of the BT SCO channel takes too long time. Usually
    * happens when the BT device has been turned on during an ongoing call.
    */
   private void bluetoothTimeout() {
+    ThreadUtils.checkIsOnMainThread();
     if (bluetoothState == State.UNINITIALIZED || bluetoothHeadset == null) {
       return;
     }
@@ -480,12 +470,10 @@ public class AppRTCBluetoothManager {
     updateAudioDeviceState();
     Log.d(TAG, "bluetoothTimeout done: BT state=" + bluetoothState);
   }
-
   /** Checks whether audio uses Bluetooth SCO. */
   private boolean isScoOn() {
     return audioManager.isBluetoothScoOn();
   }
-
   /** Converts BluetoothAdapter states into local string representations. */
   private String stateToString(int state) {
     switch (state) {
