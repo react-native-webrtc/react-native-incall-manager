@@ -871,6 +871,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             Log.d(TAG, "setSpeakerphoneOn(): " + enable);
             audioManager.setSpeakerphoneOn(enable);
         }
+
+	if (enable){
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        } else {
+            audioManager.setMode(AudioManager.MODE_NORMAL);
+        }
     }
 
     // --- TODO (zxcpoiu): These two api name is really confusing. should be changed.
