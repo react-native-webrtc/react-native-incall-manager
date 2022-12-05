@@ -869,13 +869,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void setSpeakerphoneOn(final boolean enable) {
         if (enable != audioManager.isSpeakerphoneOn())  {
             Log.d(TAG, "setSpeakerphoneOn(): " + enable);
+	    audioManager.setMode(defaultAudioMode);
             audioManager.setSpeakerphoneOn(enable);
-        }
-
-	if (enable){
-            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-        } else {
-            audioManager.setMode(AudioManager.MODE_NORMAL);
         }
     }
 
