@@ -574,6 +574,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             });
             // TODO: even if not acquired focus, we can still play sounds. but need figure out which is better.
             //getCurrentActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
+            if (!ringbackUriType.isEmpty()) {
+                startRingback(ringbackUriType);
+                defaultAudioMode = AudioManager.MODE_NORMAL;
+            }            
             audioManager.setMode(defaultAudioMode);
             setSpeakerphoneOn(defaultSpeakerOn);
             setMicrophoneMute(false);
@@ -585,9 +589,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             audioDevices.clear();
             updateAudioRoute();
 
-            if (!ringbackUriType.isEmpty()) {
-                startRingback(ringbackUriType);
-            }
         }
     }
 
