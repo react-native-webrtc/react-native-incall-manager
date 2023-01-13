@@ -202,13 +202,15 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void manualTurnScreenOff() {
         Log.d(TAG, "manualTurnScreenOff()");
+        Activity mCurrentActivity = getCurrentActivity();
+
+        if (mCurrentActivity == null) {
+            Log.d(TAG, "ReactContext doesn't have any Activity attached.");
+            return;
+        }
+
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
-                Activity mCurrentActivity = getCurrentActivity();
-                if (mCurrentActivity == null) {
-                    Log.d(TAG, "ReactContext doesn't hava any Activity attached.");
-                    return;
-                }
                 Window window = mCurrentActivity.getWindow();
                 WindowManager.LayoutParams params = window.getAttributes();
                 lastLayoutParams = params; // --- store last param
@@ -221,13 +223,15 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void manualTurnScreenOn() {
         Log.d(TAG, "manualTurnScreenOn()");
+        Activity mCurrentActivity = getCurrentActivity();
+
+        if (mCurrentActivity == null) {
+            Log.d(TAG, "ReactContext doesn't have any Activity attached.");
+            return;
+        }
+
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
-                Activity mCurrentActivity = getCurrentActivity();
-                if (mCurrentActivity == null) {
-                    Log.d(TAG, "ReactContext doesn't hava any Activity attached.");
-                    return;
-                }
                 Window window = mCurrentActivity.getWindow();
                 if (lastLayoutParams != null) {
                     window.setAttributes(lastLayoutParams);
@@ -848,14 +852,18 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void setKeepScreenOn(final boolean enable) {
         Log.d(TAG, "setKeepScreenOn() " + enable);
+
+        Activity mCurrentActivity = getCurrentActivity();
+
+        if (mCurrentActivity == null) {
+            Log.d(TAG, "ReactContext doesn't have any Activity attached.");
+            return;
+        }
+
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
-                Activity mCurrentActivity = getCurrentActivity();
-                if (mCurrentActivity == null) {
-                    Log.d(TAG, "ReactContext doesn't hava any Activity attached.");
-                    return;
-                }
                 Window window = mCurrentActivity.getWindow();
+
                 if (enable) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 } else {
