@@ -292,12 +292,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     }
                 }
             };
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.registerReceiver(wiredHeadsetReceiver, filter);
-            } else {
-                Log.d(TAG, "startWiredHeadsetEvent() reactContext is null");
-            }
+            this.registerReceiver(wiredHeadsetReceiver, filter);
         }
     }
 
@@ -322,12 +317,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     }
                 }
             };
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.registerReceiver(noisyAudioReceiver, filter);
-            } else {
-                Log.d(TAG, "startNoisyAudioEvent() reactContext is null");
-            }
+            this.registerReceiver(noisyAudioReceiver, filter);
         }
     }
 
@@ -389,12 +379,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     }
                 }
             };
-            ReactContext reactContext = getReactApplicationContext();
-            if (reactContext != null) {
-                reactContext.registerReceiver(mediaButtonReceiver, filter);
-            } else {
-                Log.d(TAG, "startMediaButtonEvent() reactContext is null");
-            }
+
+            this.registerReceiver(mediaButtonReceiver, filter);
         }
     }
 
@@ -1669,7 +1655,16 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     /** Helper method for receiver registration. */
     private void registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
-        getReactApplicationContext().registerReceiver(receiver, filter);
+        final ReactContext reactContext = getReactApplicationContext();
+        if (reactContext != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                reactContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                reactContext.registerReceiver(receiver, filter);
+            }
+        }  else {
+            Log.d(TAG, "registerReceiver() reactContext is null");
+        }
     }
 
     /** Helper method for unregistration of an existing receiver. */
