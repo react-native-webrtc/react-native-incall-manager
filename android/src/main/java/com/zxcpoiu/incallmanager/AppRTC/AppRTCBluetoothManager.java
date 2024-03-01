@@ -461,7 +461,11 @@ public class AppRTCBluetoothManager {
     return (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
   }
   protected void registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
-    apprtcContext.registerReceiver(receiver, filter);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      apprtcContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+    } else {
+      apprtcContext.registerReceiver(receiver, filter);
+    }
   }
   protected void unregisterReceiver(BroadcastReceiver receiver) {
     apprtcContext.unregisterReceiver(receiver);
