@@ -9,6 +9,7 @@
  */
 package com.zxcpoiu.incallmanager.AppRTC;
 import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
@@ -31,6 +32,7 @@ import androidx.annotation.RequiresApi;
 
 import java.util.List;
 import java.util.Set;
+import java.util.ArrayList;
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCUtils;
 import com.zxcpoiu.incallmanager.AppRTC.ThreadUtils;
 import com.zxcpoiu.incallmanager.InCallManagerModule;
@@ -41,9 +43,9 @@ import com.zxcpoiu.incallmanager.InCallManagerModule;
 public class AppRTCBluetoothManager {
   private static final String TAG = "AppRTCBluetoothManager";
   // Timeout interval for starting or stopping audio to a Bluetooth SCO device.
-  private static final int BLUETOOTH_SCO_TIMEOUT_MS = 4000;
+  private static final int BLUETOOTH_SCO_TIMEOUT_MS = 6000;
   // Maximum number of SCO connection attempts.
-  private static final int MAX_SCO_CONNECTION_ATTEMPTS = 2;
+  private static final int MAX_SCO_CONNECTION_ATTEMPTS = 10;
   // Bluetooth connection state.
   public enum State {
     // Bluetooth is not available; no adapter or Bluetooth is off.
@@ -391,6 +393,19 @@ public class AppRTCBluetoothManager {
     }
     return true;
   }
+  private List<BluetoothDevice> getFinalConnectedDevices() {
+      List<BluetoothDevice> connectedDevices = bluetoothHeadset.getConnectedDevices();
+      List<BluetoothDevice> finalDevices = new ArrayList<BluetoothDevice>();
+
+      for (BluetoothDevice device : connectedDevices) {
+          int majorClass = device.getBluetoothClass().getMajorDeviceClass();
+
+          if (majorClass == BluetoothClass.Device.Major.AUDIO_VIDEO) {
+              finalDevices.add(device);
+          }
+      }
+      return finalDevices;
+  }
   /** Stops Bluetooth SCO connection with remote device. */
   public void stopScoAudio() {
     ThreadUtils.checkIsOnMainThread();
@@ -436,7 +451,7 @@ public class AppRTCBluetoothManager {
       // Get connected devices for the headset profile. Returns the set of
       // devices which are in state STATE_CONNECTED. The BluetoothDevice class
       // is just a thin wrapper for a Bluetooth hardware address.
-      List<BluetoothDevice> devices = bluetoothHeadset.getConnectedDevices();
+      List<BluetoothDevice> devices = getFinalConnectedDevices();
       if (devices.isEmpty()) {
         bluetoothDevice = null;
         bluetoothState = State.HEADSET_UNAVAILABLE;
@@ -491,7 +506,7 @@ public class AppRTCBluetoothManager {
     if (!pairedDevices.isEmpty()) {
       Log.d(TAG, "paired devices:");
       for (BluetoothDevice device : pairedDevices) {
-        Log.d(TAG, " name=" + device.getName() + ", address=" + device.getAddress());
+        Log.d(TAG, " name=" + device.getName() + ", address=" + device.getAddress() + ", deviceClass=" + String.valueOf(device.getBluetoothClass().getDeviceClass()) + ", deviceMajorClass=" + String.valueOf(device.getBluetoothClass().getMajorDeviceClass()));
       }
     }
   }
@@ -534,7 +549,7 @@ public class AppRTCBluetoothManager {
       }
       // Bluetooth SCO should be connecting; check the latest result.
       boolean scoConnected = false;
-      List<BluetoothDevice> devices = bluetoothHeadset.getConnectedDevices();
+      List<BluetoothDevice> devices = getFinalConnectedDevices();
       if (devices.size() > 0) {
         bluetoothDevice = devices.get(0);
         if (bluetoothHeadset.isAudioConnected(bluetoothDevice)) {
