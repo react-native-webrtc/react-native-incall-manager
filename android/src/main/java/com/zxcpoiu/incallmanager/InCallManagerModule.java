@@ -62,6 +62,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCBluetoothManager;
 
@@ -163,7 +164,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     // Contains a list of available audio devices. A Set collection is used to
     // avoid duplicate elements.
-    private Set<AudioDevice> audioDevices = new HashSet<>();
+	private Set<AudioDevice> audioDevices = ConcurrentHashMap.newKeySet();
 
     interface MyPlayerInterface {
         public boolean isPlaying();
@@ -1795,7 +1796,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             // Store state which is set to true if the device list has changed.
             boolean audioDeviceSetUpdated = !audioDevices.equals(newAudioDevices);
             // Update the existing audio device set.
-            audioDevices = newAudioDevices;
+			audioDevices.clear();
+            audioDevices.addAll(newAudioDevices);
 
             AudioDevice newAudioDevice = getPreferredAudioDevice();
 
@@ -1853,7 +1855,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private WritableMap getAudioDeviceStatusMap() {
         WritableMap data = Arguments.createMap();
         String audioDevicesJson = "[";
-        for (AudioDevice s: audioDevices) {
+        for (AudioDevice s: new HashSet<>(audioDevices)) {
             audioDevicesJson += "\"" + s.name() + "\",";
         }
 
