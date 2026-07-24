@@ -78,7 +78,8 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     // --- AudioRouteManager
     private AudioManager audioManager;
-    private boolean audioManagerActivated = false;
+    private volatile boolean audioManagerActivated = false;
+    private final Object audioSetupLock = new Object();
     private boolean isAudioFocused = false;
     //private final Object mAudioFocusLock = new Object();
     private boolean isOrigAudioSetupStored = false;
@@ -549,7 +550,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
         automatic = auto;
         if (!audioManagerActivated) {
-            audioManagerActivated = true;
+            synchronized (audioSetupLock) {
+                audioManagerActivated = true;
+            }
 
             Log.d(TAG, "start audioRouteManager");
             wakeLockUtils.acquirePartialWakeLock();
@@ -604,9 +607,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 UiThreadUtil.runOnUiThread(() -> {
                     bluetoothManager.stop();
                 });
-                restoreOriginalAudioSetup();
+                synchronized (audioSetupLock) {
+                    restoreOriginalAudioSetup();
+                    audioManagerActivated = false;
+                }
                 abandonAudioFocus();
-                audioManagerActivated = false;
             }
             wakeLockUtils.releasePartialWakeLock();
         }
@@ -1128,7 +1133,13 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     if (mRingtone != null) {
                         mRingtone.stopPlay();
                         mRingtone = null;
-                        restoreOriginalAudioSetup();
+                        synchronized (audioSetupLock) {
+                            if (!audioManagerActivated) {
+                                restoreOriginalAudioSetup();
+                            } else {
+                                Log.d(TAG, "stopRingtone(): skip audio restore while call audio is active");
+                            }
+                        }
                     }
                     if (mRingtoneCountDownHandler != null) {
                         mRingtoneCountDownHandler.removeCallbacksAndMessages(null);
@@ -1898,4 +1909,3 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         return newAudioDevice;
     }
 }
-
