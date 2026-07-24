@@ -37,6 +37,8 @@ This module is designed to work with [react-native-webrtc](https://github.com/on
 ===================================================
 ### Android:
   
+This module requires Android 7.0 (API level 24) or later. Set `minSdkVersion` to at least `24` in your app's `android/app/build.gradle`.
+
 note: you might need `android.permission.BLUETOOTH` permisions for Bluetooth to work.
   
 After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
