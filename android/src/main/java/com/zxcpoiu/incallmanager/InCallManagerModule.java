@@ -727,8 +727,23 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         AudioFocusRegistration candidate = null;
         int requestResult;
         try {
-            AudioFocusRequest request = Build.VERSION.SDK_INT >= 26
-                    ? createAudioFocusRequest(ringtone, listener) : null;
+            AudioFocusRequest request = null;
+            if (Build.VERSION.SDK_INT >= 26) {
+                AudioAttributes attributes = new AudioAttributes.Builder()
+                        .setUsage(ringtone
+                                ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+                                : AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(ringtone
+                                ? AudioAttributes.CONTENT_TYPE_SONIFICATION
+                                : AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build();
+                request = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                        .setAudioAttributes(attributes)
+                        .setAcceptsDelayedFocusGain(false)
+                        .setWillPauseWhenDucked(false)
+                        .setOnAudioFocusChangeListener(listener, ringtoneHandler)
+                        .build();
+            }
             candidate = new AudioFocusRegistration(generation, listener, request);
             requestResult = Build.VERSION.SDK_INT >= 26
                     ? audioManager.requestAudioFocus(request)
@@ -757,25 +772,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
         Log.d(TAG, "requestAudioFocus(): usage=" + usage + ", res=" + result);
         return result;
-    }
-
-    private AudioFocusRequest createAudioFocusRequest(
-            boolean ringtone,
-            AudioManager.OnAudioFocusChangeListener listener) {
-        AudioAttributes attributes = new AudioAttributes.Builder()
-                .setUsage(ringtone
-                        ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE
-                        : AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                .setContentType(ringtone
-                        ? AudioAttributes.CONTENT_TYPE_SONIFICATION
-                        : AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build();
-        return new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                .setAudioAttributes(attributes)
-                .setAcceptsDelayedFocusGain(false)
-                .setWillPauseWhenDucked(false)
-                .setOnAudioFocusChangeListener(listener, ringtoneHandler)
-                .build();
     }
 
     private String audioFocusResultToString(int result) {
