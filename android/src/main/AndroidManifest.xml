@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.zxcpoiu.incallmanager" >
-</manifest>
 
+    <!-- start() and startRingtone() hold a partial wake lock and pokeScreen() a
+         full one; PowerManager.WakeLock.acquire() throws SecurityException without
+         this permission. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- setMode(), setSpeakerphoneOn(), setMicrophoneMute() and Bluetooth SCO
+         routing are ignored by AudioService without this permission. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+</manifest>
