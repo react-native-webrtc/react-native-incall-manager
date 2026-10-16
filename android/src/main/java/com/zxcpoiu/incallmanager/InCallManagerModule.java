@@ -288,12 +288,27 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         if (isOrigAudioSetupStored) {
             setSpeakerphoneOn(origIsSpeakerPhoneOn);
             setMicrophoneMute(origIsMicrophoneMute);
-            audioManager.setMode(origAudioMode);
+            audioManager.setMode(restorableAudioMode(origAudioMode));
             if (getCurrentActivity() != null) {
                 getCurrentActivity().setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
             }
             isOrigAudioSetupStored = false;
         }
+    }
+
+    /**
+     * A call mode seen at start() belongs to whoever set it: Telecom for a
+     * self-managed ConnectionService call (setAudioModeIsVoip), or another
+     * component of the app. Writing it back from this process at stop() would
+     * register this app's own request for that mode, which then outlives the
+     * call. MODE_NORMAL withdraws this app's request and leaves any other
+     * owner's mode in place.
+     */
+    private static int restorableAudioMode(int mode) {
+        if (mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION) {
+            return AudioManager.MODE_NORMAL;
+        }
+        return mode;
     }
 
     private void startWiredHeadsetEvent() {
@@ -603,6 +618,16 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     private void startOnLifecycleThread(String requestedMedia, boolean auto, String ringbackUriType) {
+        // A busy tone still playing means the previous call's stop({busytone})
+        // is deferred until the tone ends. This start() is a new call: finish
+        // that stop now so the new call gets a fresh session (its own media,
+        // ringback, default route) instead of the repeated-start path.
+        boolean deferredStopPending = audioManagerActivated && mBusytone != null;
+        stopBusytoneOnLifecycleThread();
+        if (deferredStopPending) {
+            Log.d(TAG, "start(): completing the previous call's deferred stop");
+            stopOnLifecycleThread("");
+        }
         media = requestedMedia;
         if (media.equals("video")) {
             defaultSpeakerOn = true;
@@ -610,9 +635,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             defaultSpeakerOn = false;
         }
         automatic = auto;
-        // A new explicit start supersedes a deferred stop that is still playing
-        // its busy tone. Clearing the identity also makes its late completion stale.
-        stopBusytoneOnLifecycleThread();
         if (!audioManagerActivated) {
             audioManagerActivated = true;
             audioLifecycleState.startCall();
@@ -1025,6 +1047,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 return;
             }
             Log.d(TAG, "setForceSpeakerphoneOn() flag: " + flag);
+            if (!isRouteSessionActive()) {
+                // The device list is the last session's; selecting from it would
+                // write MODE_IN_COMMUNICATION and the speaker into an idle app.
+                Log.d(TAG, "setForceSpeakerphoneOn(): no active call or ringtone, ignored");
+                return;
+            }
             forceSpeakerOn = flag;
 
             // --- will call updateAudioDeviceState()
@@ -1040,6 +1068,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     // --- TODO (zxcpoiu): Implement api to let user choose audio devices
+
+    private boolean isRouteSessionActive() {
+        return audioManagerActivated || audioLifecycleState.isRingtoneActive();
+    }
 
     @ReactMethod
     public void setMicrophoneMute(final boolean enable) {
@@ -1266,7 +1298,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                         && audioManager.getStreamVolume(AudioManager.STREAM_RING) > 0
                         && ringtoneUri != null;
                 boolean hfpRinging = hasConnectedBluetoothHfp() && ringtoneUri != null;
-                if (!audible && !vibrationAllowed && !hfpRinging) {
+                // A connected HFP device only adds focus to a vibration-only
+                // ringtone (README); with neither sound nor vibration nothing
+                // alerts, so don't hold focus and a wake lock for silence.
+                if (!audible && !vibrationAllowed) {
                     Log.d(TAG, "startRingtone(): no audible or vibration alert available");
                     stopRingtoneOnLifecycleThread(generation);
                     return;
@@ -1278,9 +1313,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 if (ringtoneNeedsFocus) {
                     audioLifecycleState.addRingtoneFocusOwner(generation);
                 }
-                if (audioManagerActivated) {
-                    stopOnLifecycleThread("");
-                }
+                // A ringtone during a call (call waiting) is independent of the
+                // call: the call keeps its session, mode, route and focus, and
+                // call attributes keep priority for the shared focus request.
 
                 boolean focusGranted = true;
                 if (ringtoneNeedsFocus) {
@@ -1335,7 +1370,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     };
                     ringtoneTimeoutGeneration = generation;
                     ringtoneHandler.postDelayed(ringtoneTimeout, timeoutMillis);
-                } else if (!audible && !vibrationStarted && !hfpRinging) {
+                } else if (!audible && !vibrationStarted) {
                     stopRingtoneOnLifecycleThread(generation);
                 }
             } catch (Exception e) {
@@ -1476,8 +1511,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                     return;
                 }
                 try {
-                    audioManager.setMode(AudioManager.MODE_RINGTONE);
-                    updateAudioRoute();
+                    if (!audioManagerActivated) {
+                        audioManager.setMode(AudioManager.MODE_RINGTONE);
+                        updateAudioRoute();
+                    }
                     mp.start();
                 } catch (RuntimeException e) {
                     Log.e(TAG, "MediaPlayer mRingtone onPrepared() failed", e);
@@ -1943,7 +1980,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         runOnLifecycleThread(() -> {
             Log.d(TAG, "RNInCallManager.chooseAudioRoute(): user choose audioDevice = " + audioRoute);
 
-            if (audioRoute.equals(AudioDevice.EARPIECE.name())) {
+            if (!isRouteSessionActive()) {
+                Log.d(TAG, "chooseAudioRoute(): no active call or ringtone, ignored");
+            } else if (audioRoute.equals(AudioDevice.EARPIECE.name())) {
                 selectAudioDevice(AudioDevice.EARPIECE);
             } else if (audioRoute.equals(AudioDevice.SPEAKER_PHONE.name())) {
                 selectAudioDevice(AudioDevice.SPEAKER_PHONE);
@@ -1992,7 +2031,18 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     @Override
     public void onHostDestroy() {
+        // The Activity is gone, but JS and the call may live on (a foreground
+        // service, Back on the root activity, an Activity recreation). The app
+        // still owns the session and can call stop(); invalidate() below ends
+        // it when the React instance itself goes away.
         Log.d(TAG, "onDestroy()");
+    }
+
+    // NativeModule.invalidate(): the React instance is being torn down, so JS
+    // can no longer stop what it started. No @Override, so the module still
+    // compiles against React Native versions that predate invalidate().
+    public void invalidate() {
+        Log.d(TAG, "invalidate()");
         stopRingtone();
         stopRingback();
         stopBusytone();
