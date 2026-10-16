@@ -1,9 +1,16 @@
+/** URIs getAudioUri() has resolved, by fileType ('_BUNDLE_', '_DEFAULT_' or a file name). */
+type AudioUriCache = {
+  _BUNDLE_: string | null;
+  _DEFAULT_: string | null;
+  [fileType: string]: string | null;
+};
+
 declare class InCallManager {
   vibrate: boolean;
   audioUriMap: {
-    ringtone: { _BUNDLE_: null; _DEFAULT_: null };
-    ringback: { _BUNDLE_: null; _DEFAULT_: null };
-    busytone: { _BUNDLE_: null; _DEFAULT_: null };
+    ringtone: AudioUriCache;
+    ringback: AudioUriCache;
+    busytone: AudioUriCache;
   };
 
   constructor();
@@ -32,11 +39,17 @@ declare class InCallManager {
 
   setMicrophoneMute(enable: boolean): void;
 
+  /**
+   * @param ringtone '_DEFAULT_' (default), '_BUNDLE_' or a system file name with extension
+   * @param vibrate_pattern a pattern in ms, as for RN's Vibration (no repeat); a single number does not vibrate
+   * @param ios_category iOS only: 'playback' plays in the Playback category, anything else in SoloAmbient
+   * @param seconds Android only: stop after this many seconds (default: loop until stopRingtone())
+   */
   startRingtone(
-    ringtone: string,
-    vibrate_pattern: number | number[],
-    ios_category: string,
-    seconds: number
+    ringtone?: string,
+    vibrate_pattern?: number[],
+    ios_category?: string,
+    seconds?: number
   ): void;
 
   stopRingtone(): void;

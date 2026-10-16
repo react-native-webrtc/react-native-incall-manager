@@ -39,40 +39,26 @@ This module is designed to work with [react-native-webrtc](https://github.com/on
   
 This module requires Android 7.0 (API level 24) or later. Set `minSdkVersion` to at least `24` in your app's `android/app/build.gradle`.
 
-note: you might need `android.permission.BLUETOOTH` permisions for Bluetooth to work.
-  
-After install, you can use `rnpm` (`npm install rnpm -g`) to link android.  
-use `react-native link react-native-incall-manager` to link or manually if you like.
+React Native 0.60+ links the module automatically (autolinking); there is nothing to add to `settings.gradle`, `build.gradle` or `MainApplication`.
 
-We use android support library v4 to check/request permissions.  
-You should add `compile "com.android.support:support-v4:$YOUR_VERSION"` in `$YOUR_PROJECT/android/app/build.gradle` dependencies on android.  
+#### Permissions
 
-#### Manually Linking
+The module needs these permissions in your app's `AndroidManifest.xml`:
 
-If `react-native link` doesn't work, ( see: https://github.com/zxcpoiu/react-native-incall-manager/issues/21#issuecomment-279575516 ) please add it manually in your main project:
+```xml
+<!-- start() and startRingtone() hold a partial wake lock, pokeScreen() a full one;
+     without it start() throws a SecurityException -->
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+<!-- setMode / speakerphone / Bluetooth SCO routing is ignored without it -->
+<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<!-- Bluetooth headsets on Android 11 and lower -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<!-- Bluetooth headsets on Android 12+; a runtime permission, see below -->
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+```
 
-1. In `android/app/build.gradle`  
-    Should have a line `compile(project(':react-native-incall-manager'))` in `dependencies {}` section
+`WAKE_LOCK`, `MODIFY_AUDIO_SETTINGS` and `BLUETOOTH` are granted at install. On Android 12 (API 31) and later `BLUETOOTH_CONNECT` must also be granted at runtime before `start()`, for example with `PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT)`; without it the module offers no `BLUETOOTH` route.
 
-2. In `android/settings.gradle`  
-    Should have: 
-    ```
-    include ':react-native-incall-manager'
-    project(':react-native-incall-manager').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-incall-manager/android')
-    ```
-    
-3. In `MainApplication.java`
-
-    ```java
-    import com.zxcpoiu.incallmanager.InCallManagerPackage;
-    private static List<ReactPackage> getPackages() {
-        return Arrays.<ReactPackage>asList(
-            new MainReactPackage(),
-            new InCallManagerPackage(),
-
-        );
-    }
-    ```
 #### Optional sound files on android
 
 If you want to use bundled ringtone/ringback/busytone sound instead of system sound,  
@@ -227,8 +213,8 @@ DeviceEventEmitter.addListener('Proximity', function (data) {
 **On start:**  
 * Store current settings, set KeepScreenOn flag = true, and register some event listeners.
 * If media type is `audio`, route voice to earpiece, otherwise route to speaker.
-* Audio will enable proximity sensor which is disabled by default if media=video
-* When proximity detects user close to screen, turn off screen to avoid accident touch and route voice to the earpiece.
+* iOS: an `audio` call enables the proximity sensor (a `video` call doesn't), and when it detects the user close to the screen the system turns the screen off.
+* Android: the proximity sensor is on for both media types; when it detects the user close to the screen while audio is routed to the earpiece, the screen is turned off to avoid accidental touches. It doesn't change the route.
 * When newly external device plugged, such as wired-headset, route audio to an external device.
 * Optional play ringback
 
@@ -257,12 +243,12 @@ Note: iOS only supports `auto` currently.
 | setSpeakerphoneOn(`enable: ?boolean`)   | :smile: | :rage: | toggle speaker ON/OFF once. but not force</br>default: false |
 | setForceSpeakerphoneOn(`flag: ?boolean`)   | :smile: | :smile: | true -> force speaker on</br> false -> force speaker off</br> null -> use default behavior according to media type</br>default: null |
 | setMicrophoneMute(`enable: ?boolean`)   | :smile: | :rage: | mute/unmute micophone</br>default: false</br>p.s. if you use webrtc, you can just use `track.enabled = false` to mute |
-| async getAudioUriJS()   | :smile: | :smile: | get audio Uri path. this would be useful when you want to pass Uri into another module. |
+| async getAudioUri(`audioType: string, fileType: string`)   | :smile: | :smile: | get audio Uri path. this would be useful when you want to pass Uri into another module.</br>`audioType`: 'ringtone', 'ringback' or 'busytone'</br>`fileType`: '_DEFAULT_', '_BUNDLE_' or a system file name</br>resolves `null` if there is none |
 | startRingtone(`ringtone: string, ?vibrate_pattern: array, ?ios_category: string, ?seconds: number`)   | :smile: | :smile: | play ringtone. </br>`ringtone`: '_DEFAULT_' or '_BUNDLE_'</br>`vibrate_pattern`: same as RN, but does not support repeat</br>`ios_category`: ios only, if you want to use specific audio category</br>`seconds`: android only, specify how long do you want to play rather than play once nor repeat. in sec.|
 | stopRingtone()   | :smile: | :smile: | stop play ringtone if previous started via `startRingtone()` |
 | stopRingback()   | :smile: | :smile: | stop play ringback if previous started via `start()` |
 | setFlashOn(`enable: ?boolean, brightness: ?number`)  | :rage: | :smile: | set flash light on/off |
-| async getIsWiredHeadsetPluggedIn()  | :rage: | :smile: | return wired headset plugged in state |
+| async getIsWiredHeadsetPluggedIn()  | :smile: | :smile: | return wired headset plugged in state</br>resolves `{isWiredHeadsetPluggedIn: boolean}` |
 
 
 
@@ -273,7 +259,7 @@ Note: iOS only supports `auto` currently.
 | 'Proximity'   | :smile: | :smile: | proximity sensor detected changes.<br>data: `{'isNear': boolean}` |
 | 'WiredHeadset'| :smile: | :smile:  | fire when wired headset plug/unplug<br>data: `{'isPlugged': boolean, 'hasMic': boolean, 'deviceName': string }` |
 | 'NoisyAudio'  | :smile: | :rage: | see [android doc](http://developer.android.com/reference/android/media/AudioManager.html#ACTION_AUDIO_BECOMING_NOISY).<br>data: `null` |
-| 'MediaButton' | :smile: | :rage: | when external device controler pressed button. see [android doc](http://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON) <br>data: `{'eventText': string, 'eventCode': number }` |
+| 'MediaButton' | :neutral_face: | :rage: | when external device controler pressed button. see [android doc](http://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON) <br>data: `{'eventText': string, 'eventCode': number }`<br>Android 8.0+ delivers headset buttons to media sessions, not to this broadcast, so it does not fire for them there; Android 7.x sends it only while no media session is active. |
 | 'onAudioFocusChange' | :smile: | :rage: | see [android doc](http://developer.android.com/reference/android/media/AudioManager.OnAudioFocusChangeListener.html#onAudioFocusChange(int)) <br>data: `{'eventText': string, 'eventCode': number }` |
 
 **NOTE: platform OS always has the final decision, so some toggle API may not work in some cases
