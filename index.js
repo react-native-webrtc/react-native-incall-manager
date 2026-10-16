@@ -75,9 +75,12 @@ class InCallManager {
 
     startRingtone(ringtone, vibrate_pattern, ios_category, seconds) {
         ringtone = (typeof ringtone === 'string') ? ringtone : "_DEFAULT_";
-        this.vibrate = (Array.isArray(vibrate_pattern)) ? true : false;
+        // --- every element must be a finite number; native would throw on anything else
+        this.vibrate = Array.isArray(vibrate_pattern)
+            && vibrate_pattern.every((ms) => typeof ms === 'number' && isFinite(ms));
         ios_category = (ios_category === 'playback') ? 'playback' : "default";
-        seconds = (typeof seconds === 'number' && seconds > 0) ? parseInt(seconds) : -1; // --- android only, default looping
+        // --- android only, default looping. Round up: a fraction must not become 0 (= no timeout).
+        seconds = (typeof seconds === 'number' && seconds > 0 && isFinite(seconds)) ? Math.ceil(seconds) : -1;
 
         if (Platform.OS === 'android') {
             if (typeof _InCallManager.startRingtoneWithVibration === 'function') {
@@ -139,6 +142,9 @@ class InCallManager {
         if (typeof this.audioUriMap[audioType] === "undefined") {
             return null;
         }
+        if (typeof fileType !== 'string' || fileType.length === 0) {
+            fileType = '_DEFAULT_';
+        }
         if (this.audioUriMap[audioType][fileType]) {
             return this.audioUriMap[audioType][fileType];
         } else {
@@ -157,6 +163,9 @@ class InCallManager {
     }
 
     async chooseAudioRoute(route) {
+        if (typeof route !== 'string') {
+            throw new TypeError('chooseAudioRoute(): route must be a string, got ' + typeof route);
+        }
         let result = await _InCallManager.chooseAudioRoute(route);
         return result;
     }

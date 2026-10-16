@@ -101,7 +101,94 @@ function run() {
         ]);
     }
 
+    {
+        // A vibration pattern with a non-number element is not forwarded:
+        // ReadableArray.getDouble() throws on it on the native-modules thread.
+        const calls = [];
+        const nativeModule = {
+            startRingtoneWithVibration(...args) { calls.push(args); },
+            stopRingtone() {},
+        };
+        const vibration = {
+            vibrate() { throw new Error('new Android native must own vibration'); },
+            cancel() {},
+        };
+        const manager = loadManager('android', nativeModule, vibration);
+
+        manager.startRingtone('_DEFAULT_', ['200', 300], 'default', 3);
+        manager.startRingtone('_DEFAULT_', [0, NaN], 'default', 3);
+        // A fraction of a second must not become 0 (= no timeout, ring forever).
+        manager.startRingtone('_DEFAULT_', [0, 100], 'default', 0.5);
+
+        assert.deepStrictEqual(calls, [
+            ['_DEFAULT_', 3, null],
+            ['_DEFAULT_', 3, null],
+            ['_DEFAULT_', 1, [0, 100]],
+        ]);
+    }
+
+    {
+        // Legacy native path: the same patterns are not handed to Vibration either.
+        const calls = [];
+        const nativeModule = {
+            startRingtone(...args) { calls.push(['start', ...args]); },
+            stopRingtone() { calls.push(['stop']); },
+        };
+        const vibration = {
+            vibrate(...args) { calls.push(['vibrate', ...args]); },
+            cancel() { calls.push(['cancel']); },
+        };
+        const manager = loadManager('ios', nativeModule, vibration);
+
+        manager.startRingtone('_DEFAULT_', [0, '100'], 'default');
+        manager.stopRingtone();
+
+        assert.deepStrictEqual(calls, [
+            ['start', '_DEFAULT_', 'default'],
+            ['stop'],
+        ]);
+    }
+
     console.log('index.js wrapper tests passed');
 }
 
+async function runAsync() {
+    {
+        // chooseAudioRoute() needs a route name; native would get null.
+        const calls = [];
+        const nativeModule = {
+            chooseAudioRoute(route) { calls.push(route); return Promise.resolve({}); },
+        };
+        const manager = loadManager('android', nativeModule, {});
+
+        await assert.rejects(manager.chooseAudioRoute(), { name: 'TypeError' });
+        await assert.rejects(manager.chooseAudioRoute(null), { name: 'TypeError' });
+        await manager.chooseAudioRoute('SPEAKER_PHONE');
+        assert.deepStrictEqual(calls, ['SPEAKER_PHONE']);
+    }
+
+    {
+        // getAudioUri(audioType) without a fileType asks for the default sound.
+        const calls = [];
+        const nativeModule = {
+            getAudioUriJS(audioType, fileType) {
+                calls.push([audioType, fileType]);
+                return Promise.resolve('file:///default');
+            },
+        };
+        const manager = loadManager('android', nativeModule, {});
+
+        assert.strictEqual(await manager.getAudioUri('ringtone'), 'file:///default');
+        assert.strictEqual(await manager.getAudioUri('ringtone', '_DEFAULT_'), 'file:///default');
+        assert.strictEqual(await manager.getAudioUri('nope'), null);
+        assert.deepStrictEqual(calls, [['ringtone', '_DEFAULT_']]);
+    }
+
+    console.log('index.js async wrapper tests passed');
+}
+
 run();
+runAsync().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

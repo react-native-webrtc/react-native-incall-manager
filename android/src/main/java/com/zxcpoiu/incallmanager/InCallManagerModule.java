@@ -54,6 +54,7 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.UiThreadUtil;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
@@ -1232,6 +1233,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         if (pattern != null && pattern.size() > 0) {
             timings = new long[pattern.size()];
             for (int i = 0; i < timings.length; i++) {
+                // getDouble() throws on a non-number, on the native-modules thread
+                if (pattern.getType(i) != ReadableType.Number) {
+                    Log.w(TAG, "startRingtone(): vibration pattern element " + i + " is not a number, not vibrating");
+                    timings = null;
+                    break;
+                }
                 timings[i] = Math.max(0L, (long) pattern.getDouble(i));
             }
         }
@@ -1576,7 +1583,13 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void getAudioUriJS(String audioType, String fileType, Promise promise) {
         Uri result = null;
-        if (audioType.equals("ringback")) {
+        // JS null/undefined arrive as null; an empty type means the default sound.
+        if (fileType == null) {
+            fileType = "";
+        }
+        if (audioType == null) {
+            Log.d(TAG, "getAudioUriJS(): no audioType");
+        } else if (audioType.equals("ringback")) {
             result = getRingbackUri(fileType);
         } else if (audioType.equals("busytone")) {
             result = getBusytoneUri(fileType);
@@ -1943,6 +1956,10 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         runOnLifecycleThread(() -> {
             Log.d(TAG, "RNInCallManager.chooseAudioRoute(): user choose audioDevice = " + audioRoute);
 
+            if (audioRoute == null) {
+                promise.reject("E_INVALID_AUDIO_ROUTE", "chooseAudioRoute(): no route given");
+                return;
+            }
             if (audioRoute.equals(AudioDevice.EARPIECE.name())) {
                 selectAudioDevice(AudioDevice.EARPIECE);
             } else if (audioRoute.equals(AudioDevice.SPEAKER_PHONE.name())) {
