@@ -79,8 +79,14 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     // --- Screen Manager
     private PowerManager mPowerManager;
-    private WindowManager.LayoutParams lastLayoutParams;
     private WindowManager mWindowManager;
+    // Manual screen-off state (devices without PROXIMITY_SCREEN_OFF_WAKE_LOCK).
+    // Touched only on the UI thread.
+    private boolean manualScreenOff = false;
+    private float savedScreenBrightness;
+    private boolean savedKeepScreenOn;
+    // Last setKeepScreenOn() request, re-applied when an Activity (re)appears.
+    private volatile boolean keepScreenOnRequested = false;
 
     // --- AudioRouteManager
     private AudioManager audioManager;
@@ -240,8 +246,14 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
                 Window window = mCurrentActivity.getWindow();
+                // getAttributes() is the window's live object, so save the values
+                // turnScreenOn() has to put back rather than a reference to it.
                 WindowManager.LayoutParams params = window.getAttributes();
-                lastLayoutParams = params; // --- store last param
+                if (!manualScreenOff) {
+                    savedScreenBrightness = params.screenBrightness;
+                    savedKeepScreenOn = (params.flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0;
+                    manualScreenOff = true;
+                }
                 params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF; // --- Dim as dark as possible. see BRIGHTNESS_OVERRIDE_OFF
                 window.setAttributes(params);
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -260,15 +272,17 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
         UiThreadUtil.runOnUiThread(new Runnable() {
             public void run() {
-                Window window = mCurrentActivity.getWindow();
-                if (lastLayoutParams != null) {
-                    window.setAttributes(lastLayoutParams);
-                } else {
-                    WindowManager.LayoutParams params = window.getAttributes();
-                    params.screenBrightness = -1; // --- Dim to preferable one
-                    window.setAttributes(params);
+                if (!manualScreenOff) {
+                    return; // --- nothing to undo
                 }
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                manualScreenOff = false;
+                Window window = mCurrentActivity.getWindow();
+                WindowManager.LayoutParams params = window.getAttributes();
+                params.screenBrightness = savedScreenBrightness;
+                window.setAttributes(params);
+                if (savedKeepScreenOn) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
             }
         });
     }
@@ -699,8 +713,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         stopNoisyAudioEvent();
         stopMediaButtonEvent();
         stopProximitySensor();
-        setKeepScreenOn(false);
+        // turnScreenOn() first: on the manual path it puts back the window's
+        // keep-screen-on flag from before turnScreenOff(), which the clear below
+        // must come after (both run in order on the UI thread).
         turnScreenOn();
+        setKeepScreenOn(false);
     }
 
     @ReactMethod
@@ -976,7 +993,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     @ReactMethod
     public void setKeepScreenOn(final boolean enable) {
         Log.d(TAG, "setKeepScreenOn() " + enable);
+        keepScreenOnRequested = enable;
+        applyKeepScreenOn(enable);
+    }
 
+    private void applyKeepScreenOn(final boolean enable) {
         Activity mCurrentActivity = getCurrentActivity();
 
         if (mCurrentActivity == null) {
@@ -1982,6 +2003,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     public void onHostResume() {
         Log.d(TAG, "onResume()");
         //resume();
+        // start() may have run before any Activity existed (a call answered from
+        // a notification or a headless task), or the Activity was recreated with
+        // a new window: apply a pending keep-screen-on request to it.
+        if (keepScreenOnRequested && !manualScreenOff) {
+            applyKeepScreenOn(true);
+        }
     }
 
     @Override
