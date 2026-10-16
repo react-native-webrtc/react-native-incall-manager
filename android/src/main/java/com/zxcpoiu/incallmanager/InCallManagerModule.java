@@ -29,7 +29,6 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.ToneGenerator;
 import android.net.Uri;
-import android.os.PowerManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -40,7 +39,6 @@ import android.provider.Settings;
 import androidx.annotation.Nullable;
 import android.util.Log;
 import android.util.SparseArray;
-import android.view.Display;
 import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
@@ -60,27 +58,23 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.lang.Runnable;
 import java.io.File;
-import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.zxcpoiu.incallmanager.AppRTC.AppRTCBluetoothManager;
 
-public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener, AudioManager.OnAudioFocusChangeListener {
+public class InCallManagerModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     private static final String REACT_NATIVE_MODULE_NAME = "InCallManager";
     private static final String TAG = REACT_NATIVE_MODULE_NAME;
     private String mPackageName = "com.zxcpoiu.incallmanager";
 
     // --- Screen Manager
-    private PowerManager mPowerManager;
     private WindowManager.LayoutParams lastLayoutParams;
-    private WindowManager mWindowManager;
 
     // --- AudioRouteManager
     private AudioManager audioManager;
@@ -92,11 +86,9 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private int origAudioMode = AudioManager.MODE_INVALID;
     private boolean defaultSpeakerOn = false;
     private int defaultAudioMode = AudioManager.MODE_IN_COMMUNICATION;
-    private int forceSpeakerOn = 0;
     private boolean automatic = true;
     private boolean isProximityRegistered = false;
-    private boolean proximityIsNear = false;
-    private static final String ACTION_HEADSET_PLUG = (android.os.Build.VERSION.SDK_INT >= 21) ? AudioManager.ACTION_HEADSET_PLUG : Intent.ACTION_HEADSET_PLUG;
+    private static final String ACTION_HEADSET_PLUG = AudioManager.ACTION_HEADSET_PLUG;
     private BroadcastReceiver wiredHeadsetReceiver;
     private BroadcastReceiver noisyAudioReceiver;
     private BroadcastReceiver mediaButtonReceiver;
@@ -126,26 +118,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private long ringtonePlayerGeneration = -1L;
     private String media = "audio";
 
-    private static final String SPEAKERPHONE_AUTO = "auto";
-    private static final String SPEAKERPHONE_TRUE = "true";
-    private static final String SPEAKERPHONE_FALSE = "false";
-
     /**
      * AudioDevice is the names of possible audio devices that we currently
      * support.
      */
     public enum AudioDevice { SPEAKER_PHONE, WIRED_HEADSET, EARPIECE, BLUETOOTH, NONE }
 
-    /** AudioManager state. */
-    public enum AudioManagerState {
-        UNINITIALIZED,
-        PREINITIALIZED,
-        RUNNING,
-    }
-
-    private int savedAudioMode = AudioManager.MODE_INVALID;
-    private boolean savedIsSpeakerPhoneOn = false;
-    private boolean savedIsMicrophoneMute = false;
     private boolean hasWiredHeadset = false;
 
     // Default audio device; speaker phone for video calls or earpiece for audio
@@ -164,9 +142,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     // TODO(henrika): always set to AudioDevice.NONE today. Add support for
     // explicit selection based on choice by userSelectedAudioDevice.
     private AudioDevice userSelectedAudioDevice;
-
-    // Contains speakerphone setting: auto, true or false
-    private final String useSpeakerphone = SPEAKERPHONE_AUTO;
 
     // Handles all tasks related to Bluetooth headset devices.
     private AppRTCBluetoothManager bluetoothManager = null;
@@ -208,8 +183,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         super(reactContext);
         mPackageName = reactContext.getPackageName();
         reactContext.addLifecycleEventListener(this);
-        mWindowManager = (WindowManager) reactContext.getSystemService(Context.WINDOW_SERVICE);
-        mPowerManager = (PowerManager) reactContext.getSystemService(Context.POWER_SERVICE);
         audioManager = ((AudioManager) reactContext.getSystemService(Context.AUDIO_SERVICE));
         audioUriMap = new HashMap<String, Uri>();
         audioUriMap.put("defaultRingtoneUri", defaultRingtoneUri);
@@ -477,11 +450,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     }
 
     // --- see: https://developer.android.com/reference/android/media/AudioManager
-    @Override
-    public void onAudioFocusChange(final int focusChange) {
-        runOnLifecycleThread(() -> handleAudioFocusChange(focusChange));
-    }
-
     private void onAudioFocusChange(long generation, int focusChange) {
         runOnLifecycleThread(() -> {
             if (generation != activeAudioFocusRequestGeneration) {
@@ -633,7 +601,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             audioManager.setMode(defaultAudioMode);
             setSpeakerphoneOn(defaultSpeakerOn);
             setMicrophoneMute(false);
-            forceSpeakerOn = 0;
             hasWiredHeadset = hasWiredHeadset();
             defaultAudioDevice = (defaultSpeakerOn) ? AudioDevice.SPEAKER_PHONE : (hasEarpiece()) ? AudioDevice.EARPIECE : AudioDevice.SPEAKER_PHONE;
             userSelectedAudioDevice = AudioDevice.NONE;
@@ -673,7 +640,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 stopEvents();
                 setSpeakerphoneOn(false);
                 setMicrophoneMute(false);
-                forceSpeakerOn = 0;
                 runOnLifecycleThread(() -> {
                     bluetoothManager.stop();
                 });
@@ -912,45 +878,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         wakeLockUtils.acquirePokeFullWakeLockReleaseAfter(timeout); // --- default 3000 ms
     }
 
-    private void debugScreenPowerState() {
-        String isDeviceIdleMode = "unknow"; // --- API 23
-        String isIgnoringBatteryOptimizations = "unknow"; // --- API 23
-        String isPowerSaveMode = "unknow"; // --- API 21
-        String isInteractive = "unknow"; // --- API 20 ( before since API 7 is: isScreenOn())
-        String screenState = "unknow"; // --- API 20
-
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
-            isDeviceIdleMode = String.format("%s", mPowerManager.isDeviceIdleMode());
-            isIgnoringBatteryOptimizations = String.format("%s", mPowerManager.isIgnoringBatteryOptimizations(mPackageName));
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 21) {
-            isPowerSaveMode = String.format("%s", mPowerManager.isPowerSaveMode());
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 20) {
-            isInteractive = String.format("%s", mPowerManager.isInteractive());
-            Display display = mWindowManager.getDefaultDisplay();
-            switch (display.getState()) {
-                case Display.STATE_OFF:
-                    screenState = "STATE_OFF";
-                    break;
-                case Display.STATE_ON:
-                    screenState = "STATE_ON";
-                    break;
-                case Display.STATE_DOZE:
-                    screenState = "STATE_DOZE";
-                    break;
-                case Display.STATE_DOZE_SUSPEND:
-                    screenState = "STATE_DOZE_SUSPEND";
-                    break;
-                default:
-                    break;
-            }
-        } else {
-            isInteractive = String.format("%s", mPowerManager.isScreenOn());
-        }
-        Log.d(TAG, String.format("debugScreenPowerState(): screenState='%s', isInteractive='%s', isPowerSaveMode='%s', isDeviceIdleMode='%s', isIgnoringBatteryOptimizations='%s'", screenState, isInteractive, isPowerSaveMode, isDeviceIdleMode, isIgnoringBatteryOptimizations));
-    }
-
     @ReactMethod
     public void turnScreenOn() {
         if (proximityManager.isProximityWakeLockSupported()) {
@@ -1025,7 +952,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 return;
             }
             Log.d(TAG, "setForceSpeakerphoneOn() flag: " + flag);
-            forceSpeakerOn = flag;
 
             // --- will call updateAudioDeviceState()
             // --- Note: in some devices, it may not contains specified route thus will not be effected.
@@ -1956,38 +1882,14 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         });
     }
 
-    private static int getRandomInteger(int min, int max) {
-        if (min >= max) {
-            throw new IllegalArgumentException("max must be greater than min");
-        }
-        Random random = new Random();
-        return random.nextInt((max - min) + 1) + min;
-    }
-
-    private void pause() {
-        if (audioManagerActivated) {
-            Log.d(TAG, "pause audioRouteManager");
-            stopEvents();
-        }
-    }
-
-    private void resume() {
-        if (audioManagerActivated) {
-            Log.d(TAG, "resume audioRouteManager");
-            startEvents();
-        }
-    }
-
     @Override
     public void onHostResume() {
         Log.d(TAG, "onResume()");
-        //resume();
     }
 
     @Override
     public void onHostPause() {
         Log.d(TAG, "onPause()");
-        //pause();
     }
 
     @Override
@@ -2037,30 +1939,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
 
 
-    /**
-     * Changes default audio device.
-     * TODO(henrika): add usage of this method in the AppRTCMobile client.
-     */
-    public void setDefaultAudioDevice(AudioDevice defaultDevice) {
-        switch (defaultDevice) {
-            case SPEAKER_PHONE:
-                defaultAudioDevice = defaultDevice;
-                break;
-            case EARPIECE:
-                if (hasEarpiece()) {
-                    defaultAudioDevice = defaultDevice;
-                } else {
-                    defaultAudioDevice = AudioDevice.SPEAKER_PHONE;
-                }
-                break;
-            default:
-                Log.e(TAG, "Invalid default audio device selection");
-                break;
-        }
-        Log.d(TAG, "setDefaultAudioDevice(device=" + defaultAudioDevice + ")");
-        updateAudioDeviceState();
-    }
-
     /** Changes selection of the currently active audio device. */
     public void selectAudioDevice(AudioDevice device) {
         if (device != AudioDevice.NONE && !audioDevices.contains(device)) {
@@ -2069,11 +1947,6 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         }
         userSelectedAudioDevice = device;
         updateAudioDeviceState();
-    }
-
-    /** Returns current set of available/selectable audio devices. */
-    public Set<AudioDevice> getAudioDevices() {
-        return Collections.unmodifiableSet(new HashSet<>(audioDevices));
     }
 
     /** Returns the currently selected audio device. */
@@ -2145,25 +2018,21 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
      */
     @Deprecated
     private boolean hasWiredHeadset() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return audioManager.isWiredHeadsetOn();
-        } else {
-            final AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_ALL);
-            for (AudioDeviceInfo device : devices) {
-                final int type = device.getType();
-                if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET) {
-                    Log.d(TAG, "hasWiredHeadset: found wired headset");
-                    return true;
-                } else if (type == AudioDeviceInfo.TYPE_USB_DEVICE) {
-                    Log.d(TAG, "hasWiredHeadset: found USB audio device");
-                    return true;
-                } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
-                    Log.d(TAG, "hasWiredHeadset: found wired headphones");
-                    return true;
-                }
+        final AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_ALL);
+        for (AudioDeviceInfo device : devices) {
+            final int type = device.getType();
+            if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET) {
+                Log.d(TAG, "hasWiredHeadset: found wired headset");
+                return true;
+            } else if (type == AudioDeviceInfo.TYPE_USB_DEVICE) {
+                Log.d(TAG, "hasWiredHeadset: found USB audio device");
+                return true;
+            } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
+                Log.d(TAG, "hasWiredHeadset: found wired headphones");
+                return true;
             }
-            return false;
         }
+        return false;
     }
 
     @ReactMethod
