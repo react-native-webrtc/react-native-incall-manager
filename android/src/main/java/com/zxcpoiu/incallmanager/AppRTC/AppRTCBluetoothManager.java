@@ -143,17 +143,34 @@ public class AppRTCBluetoothManager {
     private void updateDeviceList() {
       final AudioDeviceInfo newBtDevice = getScoDevice();
       boolean needChange = false;
-      if (bluetoothAudioDevice != null && newBtDevice == null) {
+      if (bluetoothAudioDevice == null) {
+        needChange = newBtDevice != null;
+      } else if (!isCommunicationDeviceAvailable(bluetoothAudioDevice)) {
+        // The headset in use went away; another one may have taken its place
+        // (earbuds off, car on). updateDevice() only runs outside SCO_CONNECTED,
+        // so drop the old device's route and state here, and the audio manager's
+        // update picks up the remaining headset, if any, and connects it.
         needChange = true;
-        bluetoothState = State.HEADSET_UNAVAILABLE;
-      } else if (bluetoothAudioDevice == null && newBtDevice != null) {
-        needChange = true;
-      } else if (bluetoothAudioDevice != null && bluetoothAudioDevice.getId() != newBtDevice.getId()) {
-        needChange = true;
+        stopScoAudio();
+        bluetoothAudioDevice = null;
+        if (newBtDevice == null) {
+          bluetoothState = State.HEADSET_UNAVAILABLE;
+        }
       }
+      // A second headset appearing while the current one stays available
+      // changes nothing: the call stays where it is.
       if (needChange) {
         updateAudioDeviceState();
       }
+    }
+
+    private boolean isCommunicationDeviceAvailable(AudioDeviceInfo device) {
+      for (AudioDeviceInfo available : audioManager.getAvailableCommunicationDevices()) {
+        if (available.getId() == device.getId()) {
+          return true;
+        }
+      }
+      return false;
     }
   }
 
@@ -217,6 +234,14 @@ public class AppRTCBluetoothManager {
           if (isInitialStickyBroadcast()) {
             Log.d(TAG, "Ignore STATE_AUDIO_DISCONNECTED initial sticky broadcast.");
             return;
+          }
+          if (bluetoothState == State.SCO_CONNECTED) {
+            // Not our stopScoAudio() (that leaves SCO_DISCONNECTING): the headset
+            // dropped SCO itself (its transfer button, or a phone call took the
+            // link, which Android does not hand back). Release our SCO request
+            // and let the audio manager fall back and request SCO again.
+            Log.d(TAG, "SCO was disconnected by the remote device");
+            stopScoAudio();
           }
           updateAudioDeviceState();
         }
@@ -399,9 +424,10 @@ public class AppRTCBluetoothManager {
       List<BluetoothDevice> finalDevices = new ArrayList<BluetoothDevice>();
 
       for (BluetoothDevice device : connectedDevices) {
-          int majorClass = device.getBluetoothClass().getMajorDeviceClass();
-
-          if (majorClass == BluetoothClass.Device.Major.AUDIO_VIDEO) {
+          // getBluetoothClass() returns null on error (adapter service gone, RemoteException).
+          BluetoothClass bluetoothClass = device.getBluetoothClass();
+          if (bluetoothClass != null
+                  && bluetoothClass.getMajorDeviceClass() == BluetoothClass.Device.Major.AUDIO_VIDEO) {
               finalDevices.add(device);
           }
       }
@@ -515,7 +541,11 @@ public class AppRTCBluetoothManager {
     if (!pairedDevices.isEmpty()) {
       Log.d(TAG, "paired devices:");
       for (BluetoothDevice device : pairedDevices) {
-        Log.d(TAG, " name=" + device.getName() + ", address=" + device.getAddress() + ", deviceClass=" + String.valueOf(device.getBluetoothClass().getDeviceClass()) + ", deviceMajorClass=" + String.valueOf(device.getBluetoothClass().getMajorDeviceClass()));
+        BluetoothClass bluetoothClass = device.getBluetoothClass();
+        Log.d(TAG, " name=" + device.getName() + ", address=" + device.getAddress()
+                + (bluetoothClass == null ? ", deviceClass=unknown"
+                        : ", deviceClass=" + bluetoothClass.getDeviceClass()
+                        + ", deviceMajorClass=" + bluetoothClass.getMajorDeviceClass()));
       }
     }
   }

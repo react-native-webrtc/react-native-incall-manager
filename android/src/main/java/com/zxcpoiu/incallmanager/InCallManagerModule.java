@@ -2239,8 +2239,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             }
 
             // --- start bluetooth if needed
-            if (selectedAudioDevice != AudioDevice.BLUETOOTH
-                    && newAudioDevice == AudioDevice.BLUETOOTH
+            // HEADSET_AVAILABLE means SCO is neither up nor connecting, also when
+            // BLUETOOTH is still the selected device (a SCO timeout, a link the
+            // headset dropped, a new headset after a swap), so start it again.
+            // startScoAudio() gives up after MAX_SCO_CONNECTION_ATTEMPTS.
+            if (newAudioDevice == AudioDevice.BLUETOOTH
                     && bluetoothManager.getState() == AppRTCBluetoothManager.State.HEADSET_AVAILABLE) {
                 // Attempt to start Bluetooth SCO audio (takes a few second to start).
                 if (!bluetoothManager.startScoAudio()) {
