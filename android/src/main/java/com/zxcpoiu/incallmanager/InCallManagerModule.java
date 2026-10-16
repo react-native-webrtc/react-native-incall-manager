@@ -23,6 +23,7 @@ import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
@@ -100,6 +101,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
     private BroadcastReceiver wiredHeadsetReceiver;
     private BroadcastReceiver noisyAudioReceiver;
     private BroadcastReceiver mediaButtonReceiver;
+    private AudioDeviceCallback wiredDeviceCallback;
     private AudioFocusRequest mActiveAudioFocusRequest;
     private AudioManager.OnAudioFocusChangeListener mActiveAudioFocusListener;
     private long nextAudioFocusRequestGeneration;
@@ -304,9 +306,22 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if (ACTION_HEADSET_PLUG.equals(intent.getAction())) {
-                        hasWiredHeadset = intent.getIntExtra("state", 0) == 1;
+                        // HEADSET_PLUG is sticky: registering replays the last plug
+                        // event, however old. start() has just scanned the devices,
+                        // so the replay is neither news nor a better source.
+                        if (isInitialStickyBroadcast()) {
+                            return;
+                        }
+                        // A USB audio device sends no HEADSET_PLUG, so a jack unplug
+                        // doesn't mean nothing wired is left.
+                        hasWiredHeadset = intent.getIntExtra("state", 0) == 1 || hasWiredHeadset();
                         updateAudioRoute();
-                        String deviceName = intent.getStringExtra("name");
+                        // AOSP sends the name as "portName" (since Android 6.0);
+                        // "name" is the older extra, kept as a fallback.
+                        String deviceName = intent.getStringExtra("portName");
+                        if (deviceName == null) {
+                            deviceName = intent.getStringExtra("name");
+                        }
                         if (deviceName == null) {
                             deviceName = "";
                         }
@@ -329,6 +344,52 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             Log.d(TAG, "stopWiredHeadsetEvent()");
             this.unregisterReceiver(this.wiredHeadsetReceiver);
             wiredHeadsetReceiver = null;
+        }
+    }
+
+    // USB audio devices (TYPE_USB_DEVICE) come and go without HEADSET_PLUG, so
+    // follow the device list itself for the wired-headset state.
+    private void startWiredDeviceCallback() {
+        if (wiredDeviceCallback != null) {
+            return;
+        }
+        wiredDeviceCallback = new AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                onWiredDevicesChanged(addedDevices);
+            }
+
+            @Override
+            public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+                onWiredDevicesChanged(removedDevices);
+            }
+        };
+        audioManager.registerAudioDeviceCallback(wiredDeviceCallback, ringtoneHandler);
+    }
+
+    private void stopWiredDeviceCallback() {
+        if (wiredDeviceCallback != null) {
+            audioManager.unregisterAudioDeviceCallback(wiredDeviceCallback);
+            wiredDeviceCallback = null;
+        }
+    }
+
+    private void onWiredDevicesChanged(AudioDeviceInfo[] changed) {
+        boolean wiredChanged = false;
+        for (AudioDeviceInfo device : changed) {
+            if (isWiredHeadsetType(device.getType())) {
+                wiredChanged = true;
+                break;
+            }
+        }
+        if (!wiredChanged || wiredDeviceCallback == null) {
+            return;
+        }
+        boolean plugged = hasWiredHeadset();
+        if (plugged != hasWiredHeadset) {
+            Log.d(TAG, "wired/USB audio device " + (plugged ? "connected" : "disconnected"));
+            hasWiredHeadset = plugged;
+            updateAudioRoute();
         }
     }
 
@@ -366,6 +427,12 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 public void onReceive(Context context, Intent intent) {
                     if (Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) {
                         KeyEvent event = (KeyEvent)intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                        if (event == null) {
+                            // MEDIA_BUTTON is not a protected broadcast and this receiver
+                            // is exported before API 33: any app can send one, with no key.
+                            Log.d(TAG, "MEDIA_BUTTON without EXTRA_KEY_EVENT ignored");
+                            return;
+                        }
                         int keyCode = event.getKeyCode();
                         String keyText = "";
                         switch (keyCode) {
@@ -688,6 +755,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void startEvents() {
         startWiredHeadsetEvent();
+        startWiredDeviceCallback();
         startNoisyAudioEvent();
         startMediaButtonEvent();
         startProximitySensor(); // --- proximity event always enable, but only turn screen off when audio is routing to earpiece.
@@ -696,6 +764,7 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
 
     private void stopEvents() {
         stopWiredHeadsetEvent();
+        stopWiredDeviceCallback();
         stopNoisyAudioEvent();
         stopMediaButtonEvent();
         stopProximitySensor();
@@ -1032,11 +1101,28 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
             if (flag == 1) {
                 selectAudioDevice(AudioDevice.SPEAKER_PHONE);
             } else if (flag == -1) {
-                selectAudioDevice(AudioDevice.EARPIECE); // --- use the most common earpiece to force `speaker off`
+                selectAudioDevice(getSpeakerOffAudioDevice());
             } else {
                 selectAudioDevice(AudioDevice.NONE); // --- NONE will follow default route, the default route of `video` call is speaker.
             }
         });
+    }
+
+    /**
+     * "Force speaker off": the device the call uses when the speaker is not an
+     * option, like iOS's override None: a connected headset (Bluetooth, then
+     * wired), else the earpiece. With none of them (a tablet with nothing
+     * plugged in) the speaker is the only output and stays.
+     */
+    private AudioDevice getSpeakerOffAudioDevice() {
+        if (audioDevices.contains(AudioDevice.BLUETOOTH)) {
+            return AudioDevice.BLUETOOTH;
+        } else if (audioDevices.contains(AudioDevice.WIRED_HEADSET)) {
+            return AudioDevice.WIRED_HEADSET;
+        } else if (audioDevices.contains(AudioDevice.EARPIECE)) {
+            return AudioDevice.EARPIECE;
+        }
+        return AudioDevice.NONE;
     }
 
     // --- TODO (zxcpoiu): Implement api to let user choose audio devices
@@ -2150,20 +2236,20 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
         } else {
             final AudioDeviceInfo[] devices = audioManager.getDevices(AudioManager.GET_DEVICES_ALL);
             for (AudioDeviceInfo device : devices) {
-                final int type = device.getType();
-                if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET) {
-                    Log.d(TAG, "hasWiredHeadset: found wired headset");
-                    return true;
-                } else if (type == AudioDeviceInfo.TYPE_USB_DEVICE) {
-                    Log.d(TAG, "hasWiredHeadset: found USB audio device");
-                    return true;
-                } else if (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) {
-                    Log.d(TAG, "hasWiredHeadset: found wired headphones");
+                if (isWiredHeadsetType(device.getType())) {
+                    Log.d(TAG, "hasWiredHeadset: found wired/USB audio device, type=" + device.getType());
                     return true;
                 }
             }
             return false;
         }
+    }
+
+    private static boolean isWiredHeadsetType(int type) {
+        return type == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                || type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                || type == AudioDeviceInfo.TYPE_USB_HEADSET
+                || type == AudioDeviceInfo.TYPE_USB_DEVICE;
     }
 
     @ReactMethod
@@ -2209,7 +2295,11 @@ public class InCallManagerModule extends ReactContextBaseJavaModule implements L
                 newAudioDevices.add(AudioDevice.WIRED_HEADSET);
             }
 
-            if (hasEarpiece()) {
+            // Android routes call audio to a wired/USB headset rather than the
+            // earpiece, and turning the speaker off can't change that, so the
+            // earpiece is not selectable while one is plugged in (as in AppRTC's
+            // original audio manager, and as on iOS).
+            if (hasEarpiece() && !hasWiredHeadset) {
                 newAudioDevices.add(AudioDevice.EARPIECE);
             }
 
