@@ -1,9 +1,19 @@
 'use strict';
 var _InCallManager = require('react-native').NativeModules.InCallManager;
 import {
+    DeviceEventEmitter,
+    NativeEventEmitter,
     Platform,
     Vibration,
 } from 'react-native';
+
+// --- the events the iOS module sends: its supportedEvents, which it exports as a constant, so
+// --- this file keeps no copy of the list. Without the constant (a mocked module), every event is
+// --- passed on and the native side decides.
+function iosSupportsEvent(eventName) {
+    const events = _InCallManager && _InCallManager.supportedEvents;
+    return !Array.isArray(events) || events.indexOf(eventName) !== -1;
+}
 
 class InCallManager {
     constructor() {
@@ -154,6 +164,33 @@ class InCallManager {
                 return null;
             }
         }
+    }
+
+    async getAudioDeviceStatus() {
+        if (Platform.OS === 'ios') {
+            return await _InCallManager.getAudioDeviceStatus();
+        } else {
+            throw new Error("android doesn't support getAudioDeviceStatus(), listen for 'onAudioDeviceChanged' instead");
+        }
+    }
+
+    // Subscribes to one of this module's events ('Proximity', 'WiredHeadset',
+    // 'onAudioDeviceChanged', ...). Returns the subscription; call remove() on it.
+    // On iOS the native side sends events only while a NativeEventEmitter built on
+    // this module has listeners, so DeviceEventEmitter.addListener alone hears
+    // nothing there. Android sends through DeviceEventEmitter.
+    // The iOS module sends only its supportedEvents; for the Android-only events a no-op
+    // subscription is returned, since the native addListener: reports any other
+    // name as an error (a RedBox in a debug build).
+    addListener(eventName, listener) {
+        if (Platform.OS === 'ios') {
+            if (!iosSupportsEvent(eventName)) {
+                return { remove() {} };
+            }
+            this.emitter = this.emitter || new NativeEventEmitter(_InCallManager);
+            return this.emitter.addListener(eventName, listener);
+        }
+        return DeviceEventEmitter.addListener(eventName, listener);
     }
 
     async chooseAudioRoute(route) {

@@ -212,13 +212,22 @@ Also can interact with events if you want:
 See API section.
 
 ```javascript
-import { DeviceEventEmitter } from 'react-native';
+import InCallManager from 'react-native-incall-manager';
 
-DeviceEventEmitter.addListener('Proximity', function (data) {
+const subscription = InCallManager.addListener('Proximity', function (data) {
     // --- do something with events
 });
 
+// --- later
+subscription.remove();
 ```
+
+Use `InCallManager.addListener()` rather than `DeviceEventEmitter.addListener()`. On iOS the
+module sends events only while a `NativeEventEmitter` built on it has listeners, so a
+`DeviceEventEmitter` listener there hears nothing unless some other code happens to hold such a
+listener. `addListener()` does the right thing on each platform, and on iOS it returns a
+subscription that never fires for the Android-only events (`NoisyAudio`, `MediaButton`,
+`onAudioFocusChange`).
 
 
 
@@ -262,7 +271,10 @@ Note: iOS only supports `auto` currently.
 | stopRingtone()   | :smile: | :smile: | stop play ringtone if previous started via `startRingtone()` |
 | stopRingback()   | :smile: | :smile: | stop play ringback if previous started via `start()` |
 | setFlashOn(`enable: ?boolean, brightness: ?number`)  | :rage: | :smile: | set flash light on/off |
-| async getIsWiredHeadsetPluggedIn()  | :rage: | :smile: | return wired headset plugged in state |
+| async getIsWiredHeadsetPluggedIn()  | :rage: | :smile: | return wired headset plugged in state (a USB-C headset counts; a USB-C microphone alone doesn't) |
+| async chooseAudioRoute(`route: string`)  | :smile: | :smile: | route the call audio to `'EARPIECE'`, `'SPEAKER_PHONE'`, `'WIRED_HEADSET'` or `'BLUETOOTH'`.</br>resolves with the same data as `'onAudioDeviceChanged'`</br>ios: between `start()` and `stop()` only (rejects `E_AUDIO_ROUTE_INACTIVE` otherwise); resolves once the output is on the chosen route, or after a second with the route iOS settled on; rejects `E_AUDIO_ROUTE_UNAVAILABLE`, leaving the route as it was, when the route is not available (with the speaker forced on and carrying the call, looking for mic-less headphones or an A2DP device lifts the speaker override for a moment); rejects `E_AUDIO_ROUTE` when AVAudioSession refuses the choice, with the speaker setting put back as it was.</br>ios: `'EARPIECE'` is not available while a wired or USB headset is plugged in, mic-less headphones under a forced speaker included (iOS keeps the output on the headset). With two devices of one route (a car and AirPods), the one carrying the call is kept. `'BLUETOOTH'` includes car audio and A2DP devices, but an A2DP-only device (no microphone) can carry the call only while the session's category allows A2DP output (`AllowBluetoothA2DP`, which callkeep sets and `start()` doesn't); a USB-C headset counts as `'WIRED_HEADSET'`. `start()` clears any preferred input, so a device chosen earlier doesn't hold the call, and `stop()` drops the choice and puts back the preferred input the app had before `start()`.</br>android: `'EARPIECE'` stays listed, and a choice of it is reported as made, while a wired headset is plugged in (the audio stays on the headset); `start()` clears a choice, `stop()` doesn't (it lasts until the next `start()`). |
+| async getAudioDeviceStatus()  | :rage: | :smile: | return the current audio routes, same data as `'onAudioDeviceChanged'` |
+| addListener(`event: string, listener: function`)  | :smile: | :smile: | subscribe to one of the events below; returns a subscription with `remove()` (on ios, one that never fires for the android-only events) |
 
 
 
@@ -271,13 +283,38 @@ Note: iOS only supports `auto` currently.
 |  Event      |  android |   ios   |  description |
 |  :---  |   :---:  |  :---:  |     :---    |
 | 'Proximity'   | :smile: | :smile: | proximity sensor detected changes.<br>data: `{'isNear': boolean}` |
-| 'WiredHeadset'| :smile: | :smile:  | fire when wired headset plug/unplug<br>data: `{'isPlugged': boolean, 'hasMic': boolean, 'deviceName': string }` |
+| 'WiredHeadset'| :smile: | :smile:  | fire when wired headset plug/unplug<br>data: `{'isPlugged': boolean, 'hasMic': boolean, 'deviceName': string }`<br>ios: a USB-C headset counts; `isPlugged: false` is sent only when a wired headset leaves (4.3.0 also sent it whenever another device, such as AirPods or a car, left with no wired headset plugged in) |
 | 'NoisyAudio'  | :smile: | :rage: | see [android doc](http://developer.android.com/reference/android/media/AudioManager.html#ACTION_AUDIO_BECOMING_NOISY).<br>data: `null` |
 | 'MediaButton' | :smile: | :rage: | when external device controler pressed button. see [android doc](http://developer.android.com/reference/android/content/Intent.html#ACTION_MEDIA_BUTTON) <br>data: `{'eventText': string, 'eventCode': number }` |
+| 'onAudioDeviceChanged' | :smile: | :smile: | fire when the available audio routes or the selected one change<br>data: `{'availableAudioDeviceList': string, 'selectedAudioDevice': string, 'selectedAudioDeviceName': string }`<br>`availableAudioDeviceList` is a JSON array of route names, as `chooseAudioRoute()` takes<br>`selectedAudioDeviceName`: ios only, the name of the output in use<br>ios: fires between `start()` and `stop()`, once per settled change (after the module re-applies a forced speaker), to listeners added with `addListener()`; `EARPIECE` is not listed while a wired or USB headset is plugged in |
 | 'onAudioFocusChange' | :smile: | :rage: | see [android doc](http://developer.android.com/reference/android/media/AudioManager.OnAudioFocusChangeListener.html#onAudioFocusChange(int)) <br>data: `{'eventText': string, 'eventCode': number }` |
 
 **NOTE: platform OS always has the final decision, so some toggle API may not work in some cases
 be careful when customizing your own behavior**
+
+**iOS: following route changes made elsewhere.** The module isn't the only writer of the audio
+session: CallKit (through react-native-callkeep) and WebRTC set its category and mode too. While
+started, the module re-applies its own setup after each of their category changes (the
+category, the call's mode, voice chat for an audio call, and a forced speaker), and keeps its
+forced speaker setting (`setForceSpeakerphoneOn` / `chooseAudioRoute`) in step with route
+changes it didn't make, so the re-apply keeps them instead of undoing them: a headset, USB
+headset or car taking the call puts the setting back to the media's default and drops an
+earlier choice's preferred input, and so does an output outside the four routes (HDMI, line
+out) taking the call from a forced speaker; the system route picker (`AVRoutePickerView`) or CallKit's
+speaker button choosing the speaker, the receiver or a device sets it when iOS reports the change
+with reason `Override`, `Unknown`, `RouteConfigurationChange` or `CategoryChange`. On iOS 27 the
+picker's "iPhone" and CallKit's speaker-off arrive as a `CategoryChange` that leaves the session's
+category, mode and options as they were, so the module follows it as the user's choice; a change
+that finds the session set up differently (someone else configured it) has the call's route
+re-applied instead. The `RNInCallManager.AudioRouteChange.Reason` log line shows which reason iOS
+posted. While the call's
+session is interrupted (on hold for another call), route changes aren't followed: they are the
+other call's. While CallKit has the session deactivated between two calls (End & Accept), iOS 27
+reports a route with no input, on the speaker: it belongs to neither call, so it is neither followed
+nor reported (`onAudioDeviceChanged`), and the change that brings an input back has the call's
+route re-applied; an available-inputs change that finds the session set up by someone else is
+reported only after the route change that comes with it. After a media services reset the module sets up the call's session, chosen device
+and speaker setting again, and restarts a ringback or busy tone that was playing.
 
 ## LICENSE:
 

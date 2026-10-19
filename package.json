@@ -4,7 +4,8 @@
   "description": "Handling media-routes/sensors/events during a audio/video chat on React Native",
   "main": "index.js",
   "scripts": {
-    "test": "node test/index.test.js"
+    "test": "node test/index.test.js",
+    "test:ios": "bash test/ios/run.sh"
   },
   "repository": {
     "type": "git",

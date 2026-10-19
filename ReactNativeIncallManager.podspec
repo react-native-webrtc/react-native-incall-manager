@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.ios.deployment_target  = '8.0'
 
   s.preserve_paths         = 'LICENSE', 'package.json'
-  s.source_files           = '**/*.{h,m}'
+  s.source_files           = 'ios/RNInCallManager/**/*.{h,m}'
   s.exclude_files          = 'example/**/*'
   s.dependency               'React-Core'
 end
